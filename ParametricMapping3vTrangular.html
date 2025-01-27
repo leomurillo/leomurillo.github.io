@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+div {
+  background-color: yellow;
+  border: 1px solid black;
+}
+
+div#myDiv {
+  transform: skew(30deg,0deg);
+}
+</style>
+</head>
+<body>
+
+<h1>Parametric Mapping of 3-vector trangulation to the circle</h1>
+
+<p>We show two sin functions, at 2x speed, one scaled by a magic number and one offset by Pi/3. You can add another Pi/3 in the angle of the sin functions and get the same. So you get three of these, before looping.</p>
+<p>See <a href="https://www.wolframalpha.com/input?i=parametric+plot+of+%282%2FSqrt%283%29%29*sin+%282x%29+and+sin+%282x%2BPi%2F3%29">image source here</a>. <a href="https://www.wolframalpha.com/input?i=parametric+plot+of+%282%2FSqrt%283%29%29*sin+%282x%2BPi%2F3%29+and+sin+%282x%2B2*Pi%2F3%29">See the ortogonal or cartesian parametric mapping adding another Pi/3 here.<a></p>
+<p>We first see an ellipse. We will then skew the vertical (90 degree angle) axis into a 120 degree angle continuing to the left on the top, bottom to the right. Scroll down.</p>
+<h2>Cartesian parametric view</h2>
+<div>
+<img src="ParametricMapping.png"/>
+</div>
+<p>
+<h2>Trangular parametric view</h2>
+Cartesian view skewed to Pi/3 degrees along the Y-axis, no skew on the X-axis. </p>
+<div id="myDiv" style="width:800;padding-left:100px;">
+<img src="ParametricMapping.png"/>
+</div>
+The magic number 2/Sqrt(3) is just the cosecant of Pi/3, like anticipating the skew :-)
+</body>
+</html>
+
+

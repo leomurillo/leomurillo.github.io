@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Subtitle Translator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .title {
+            font-size: 2.5em;
+            font-weight: 300;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #fff, #e0e0e0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            opacity: 0.8;
+            font-size: 1.1em;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #f44336, #da190b);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(244, 67, 54, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .listening {
+            background: #4CAF50;
+        }
+
+        .stopped {
+            background: #f44336;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .subtitle-display {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 900px;
+            z-index: 1000;
+            max-height: 50vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .subtitle-box {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.3em;
+            line-height: 1.4;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .subtitle-box.updating {
+            transform: scale(1.02);
+        }
+
+        .subtitle-box.new-content {
+            border-left: 3px solid #4ade80;
+            animation: newContentPulse 0.6s ease;
+        }
+
+        @keyframes newContentPulse {
+            0% { border-left-color: #4ade80; }
+            50% { border-left-color: #22c55e; }
+            100% { border-left-color: transparent; }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .original-text {
+            color: #e0e0e0;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 8px;
+        }
+
+        .translated-text {
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .confidence {
+            font-size: 0.8em;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        .log-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            backdrop-filter: blur(10px);
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-left: 3px solid #4CAF50;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+
+        .log-time {
+            font-size: 0.8em;
+            opacity: 0.7;
+            margin-bottom: 5px;
+        }
+
+        .settings {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .setting-group label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .setting-group select {
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            outline: none;
+        }
+
+        .error-message {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid #f44336;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        /* Live Reading Mode Styles */
+        .emphasis-mode {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #0a0a0a;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 60px 40px 40px 40px;
+            font-family: 'Georgia', 'Times New Roman', serif;
+        }
+
+        .emphasis-subtitle-container {
+            width: 100%;
+            max-width: 85vw;
+            max-height: 75vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .emphasis-subtitle {
+            background: none !important;
+            box-shadow: none !important;
+            width: 100%;
+            max-width: none !important;
+            position: static !important;
+            transform: none !important;
+            animation: none;
+            padding: 0 !important;
+            margin: 0 !important;
+            transition: all 0.4s ease;
+        }
+
+        .emphasis-subtitle .original-text {
+            display: none; /* Hide original text in live mode */
+        }
+
+        .emphasis-subtitle .translated-text {
+            font-size: 2.8em;
+            line-height: 1.4;
+            font-weight: 300;
+            color: #f8f9fa;
+            text-align: center;
+            margin: 0;
+            text-shadow: none;
+            max-width: 90vw;
+            word-wrap: break-word;
+            font-family: 'Georgia', 'Times New Roman', serif;
+            transition: all 0.3s ease;
+        }
+
+        .emphasis-subtitle .confidence {
+            display: none; /* Hide confidence in live mode */
+        }
+
+        .emphasis-subtitle.latest .translated-text {
+            color: #ffffff;
+            position: relative;
+        }
+
+        .emphasis-subtitle.updating .translated-text {
+            color: #4ade80;
+        }
+
+        .emphasis-subtitle.new-content .translated-text::before {
+            content: '';
+            position: absolute;
+            left: -10px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(to bottom, #4ade80, #22c55e);
+            border-radius: 2px;
+            animation: fadeIndicator 1.2s ease;
+        }
+
+        @keyframes fadeIndicator {
+            0% { opacity: 1; transform: scaleY(0); }
+            20% { transform: scaleY(1); }
+            100% { opacity: 0; transform: scaleY(1); }
+        }
+
+        .emphasis-subtitle.older {
+            opacity: 0.6;
+            transform: scale(0.85);
+        }
+
+        .emphasis-subtitle.oldest {
+            opacity: 0.3;
+            transform: scale(0.7);
+        }
+
+        .emphasis-controls {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            z-index: 10000;
+        }
+
+        .btn-exit {
+            background: rgba(244, 67, 54, 0.8);
+            color: white;
+            border: 2px solid #f44336;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-exit:hover {
+            background: #f44336;
+            transform: scale(1.05);
+        }
+
+        .emphasis-info {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #666;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .title {
+                font-size: 2em;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .settings {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .subtitle-box {
+                font-size: 1.1em;
+                padding: 12px 20px;
+            }
+
+            .emphasis-subtitle .translated-text {
+                font-size: 2.2em;
+                line-height: 1.3;
+            }
+
+            .emphasis-subtitle.older {
+                transform: scale(0.8);
+            }
+
+            .emphasis-subtitle.oldest {
+                transform: scale(0.65);
+            }
+
+            .emphasis-controls {
+                top: 20px;
+                right: 20px;
+            }
+
+            .btn-exit {
+                padding: 8px 16px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Live Subtitle Translator</h1>
+            <p class="subtitle">Real-time speech recognition and translation</p>
+        </div>
+
+        <div class="settings">
+            <div class="setting-group">
+                <label for="sourceLanguage">Source Language</label>
+                <select id="sourceLanguage">
+                    <option value="en-US">English (US)</option>
+                    <option value="en-GB">English (UK)</option>
+                    <option value="es-ES">Spanish</option>
+                    <option value="fr-FR">French</option>
+                    <option value="de-DE">German</option>
+                    <option value="it-IT">Italian</option>
+                    <option value="pt-BR">Portuguese</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label for="targetLanguage">Target Language</label>
+                <select id="targetLanguage">
+                    <option value="es">Spanish</option>
+                    <option value="en">English</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="it">Italian</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
+                    <option value="zh">Chinese</option>
+                    <option value="ar">Arabic</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn" class="btn btn-primary">Start Listening</button>
+            <button id="stopBtn" class="btn btn-secondary" disabled>Stop Listening</button>
+            <button id="emphasisBtn" class="btn btn-primary">Live Mode</button>
+            <button id="clearBtn" class="btn btn-secondary">Clear Log</button>
+        </div>
+
+        <div class="status">
+            <span id="statusIndicator" class="status-indicator stopped"></span>
+            <span id="statusText">Ready to start</span>
+        </div>
+
+        <div id="errorContainer"></div>
+
+        <div class="log-panel">
+            <h3>Translation Log</h3>
+            <div id="logContainer">
+                <p style="opacity: 0.7; text-align: center;">Translations will appear here...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="subtitle-display" id="subtitleDisplay"></div>
+
+    <script>
+        class SubtitleTranslator {
+            constructor() {
+                this.recognition = null;
+                this.isListening = false;
+                this.currentSubtitleTimeout = null;
+                this.subtitleHistory = []; // Store recent subtitles
+                this.currentInterimText = '';
+                this.lastFinalTranscript = '';
+                this.hasPermission = false; // Track permission status
+                this.lastInterimProcessTime = 0;
+                this.interimBuffer = '';
+                this.lastTranslatedInterim = '';
+                this.chunkTimeout = null;
+                
+                this.initializeElements();
+                this.setupEventListeners();
+                this.checkBrowserSupport();
+            }
+
+            initializeElements() {
+                this.startBtn = document.getElementById('startBtn');
+                this.stopBtn = document.getElementById('stopBtn');
+                this.clearBtn = document.getElementById('clearBtn');
+                this.emphasisBtn = document.getElementById('emphasisBtn');
+                this.statusIndicator = document.getElementById('statusIndicator');
+                this.statusText = document.getElementById('statusText');
+                this.logContainer = document.getElementById('logContainer');
+                this.subtitleDisplay = document.getElementById('subtitleDisplay');
+                this.errorContainer = document.getElementById('errorContainer');
+                this.sourceLanguage = document.getElementById('sourceLanguage');
+                this.targetLanguage = document.getElementById('targetLanguage');
+                this.isEmphasisMode = false;
+                this.emphasisOverlay = null;
+            }
+
+            setupEventListeners() {
+                this.startBtn.addEventListener('click', () => this.startListening());
+                this.stopBtn.addEventListener('click', () => this.stopListening());
+                this.clearBtn.addEventListener('click', () => this.clearLog());
+                this.emphasisBtn.addEventListener('click', () => this.toggleEmphasisMode());
+            }
+
+            checkBrowserSupport() {
+                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                    this.showError('Speech recognition not supported in this browser. Please use Chrome or Edge.');
+                    return false;
+                }
+                return true;
+            }
+
+            async startListening() {
+                try {
+                    // Only request permission if we don't have it
+                    if (!this.hasPermission) {
+                        await navigator.mediaDevices.getUserMedia({ audio: true });
+                        this.hasPermission = true;
+                    }
+                    
+                    // Clear previous session
+                    this.subtitleHistory = [];
+                    this.currentInterimText = '';
+                    this.lastFinalTranscript = '';
+                    this.subtitleDisplay.innerHTML = '';
+                    
+                    // Clear emphasis mode if active
+                    if (this.isEmphasisMode && this.emphasisOverlay) {
+                        const container = this.emphasisOverlay.querySelector('.emphasis-subtitle-container');
+                        if (container) container.innerHTML = '';
+                    }
+                    
+                    this.setupSpeechRecognition();
+                    this.recognition.start();
+                    
+                    this.isListening = true;
+                    this.updateUI();
+                    this.clearError();
+                } catch (error) {
+                    this.hasPermission = false;
+                    this.showError('Microphone access denied. Please allow microphone access and try again.');
+                }
+            }
+
+            setupSpeechRecognition() {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                this.recognition = new SpeechRecognition();
+                
+                this.recognition.continuous = true;
+                this.recognition.interimResults = true; // Enable interim results
+                this.recognition.lang = this.sourceLanguage.value;
+                this.recognition.maxAlternatives = 1;
+                
+                this.recognition.onstart = () => {
+                    this.statusText.textContent = 'Listening for speech...';
+                };
+                
+                this.recognition.onresult = (event) => {
+                    this.handleSpeechResult(event);
+                };
+                
+                this.recognition.onerror = (event) => {
+                    this.handleSpeechError(event);
+                };
+                
+                this.recognition.onend = () => {
+                    if (this.isListening) {
+                        // Restart recognition if it stops unexpectedly
+                        setTimeout(() => {
+                            if (this.isListening) {
+                                this.recognition.start();
+                            }
+                        }, 100);
+                    }
+                };
+            }
+
+            async handleSpeechResult(event) {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                // Process all results
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const result = event.results[i];
+                    const transcript = result[0].transcript;
+                    const confidence = result[0].confidence || 0;
+
+                    if (result.isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                // Handle interim results with more aggressive processing for Live Mode
+                if (interimTranscript) {
+                    this.currentInterimText = interimTranscript.trim();
+                    
+                    // In Live Mode, be more aggressive with interim translations
+                    if (this.isEmphasisMode) {
+                        await this.processInterimForLiveMode(this.currentInterimText);
+                    } else {
+                        this.displayInterimSubtitle(this.currentInterimText);
+                    }
+                }
+
+                // Handle final results
+                if (finalTranscript) {
+                    const cleanTranscript = finalTranscript.trim();
+                    if (cleanTranscript && cleanTranscript !== this.lastFinalTranscript) {
+                        this.lastFinalTranscript = cleanTranscript;
+                        
+                        // Get the final result for confidence
+                        const finalResult = [...event.results].reverse().find(r => r.isFinal);
+                        const finalConfidence = finalResult ? finalResult[0].confidence : 0;
+                        
+                        // Only process if confidence is reasonable
+                        if (finalConfidence > 0.3 || finalConfidence === undefined) {
+                            await this.processFinalTranscript(cleanTranscript, finalConfidence);
+                        }
+                    }
+                }
+            }
+
+            async displayInterimSubtitle(interimText) {
+                if (interimText.length < 3) return; // Don't show very short interim text
+                
+                // Show interim text without translation (too expensive to translate interim)
+                const tempHistory = [...this.subtitleHistory];
+                
+                // Remove any existing interim entries
+                const nonInterimHistory = tempHistory.filter(s => !s.isInterim);
+                
+                // Add new interim
+                nonInterimHistory.push({
+                    original: interimText,
+                    translated: '...',
+                    confidence: 0,
+                    isInterim: true,
+                    timestamp: Date.now()
+                });
+                
+                this.displaySubtitleHistory(nonInterimHistory);
+            }
+
+            async processInterimForLiveMode(interimText) {
+                // For Live Mode, we want more aggressive real-time translation
+                const now = Date.now();
+                const timeSinceLastProcess = now - this.lastInterimProcessTime;
+                
+                // Clear any existing chunk timeout
+                if (this.chunkTimeout) {
+                    clearTimeout(this.chunkTimeout);
+                }
+                
+                // Process conditions for Live Mode:
+                // 1. If interim text is getting long (>50 chars)
+                // 2. If it's been more than 2 seconds since last process
+                // 3. If we detect a natural pause (ending punctuation)
+                const shouldProcess = 
+                    interimText.length > 50 || 
+                    timeSinceLastProcess > 2000 ||
+                    /[.!?;,]\s*$/.test(interimText);
+                
+                if (shouldProcess && interimText !== this.lastTranslatedInterim) {
+                    this.lastInterimProcessTime = now;
+                    this.lastTranslatedInterim = interimText;
+                    
+                    // Smart chunking for continuous speech
+                    const chunks = this.smartChunkText(interimText);
+                    const latestChunk = chunks[chunks.length - 1];
+                    
+                    if (latestChunk && latestChunk.trim().length > 3) {
+                        try {
+                            const translatedText = await this.translateText(latestChunk.trim(), this.targetLanguage.value);
+                            
+                            // Update subtitle history with translated interim
+                            const tempHistory = this.subtitleHistory.filter(s => !s.isInterim);
+                            tempHistory.push({
+                                original: latestChunk.trim(),
+                                translated: translatedText,
+                                confidence: 0.8, // Interim confidence
+                                isInterim: true,
+                                timestamp: now
+                            });
+                            
+                            // Keep only last 3 for Live Mode
+                            while (tempHistory.length > 3) {
+                                tempHistory.shift();
+                            }
+                            
+                            this.displaySubtitleHistory(tempHistory);
+                        } catch (error) {
+                            console.error('Interim translation error:', error);
+                        }
+                    }
+                } else {
+                    // Set a timeout to force processing if speech continues
+                    this.chunkTimeout = setTimeout(() => {
+                        if (this.currentInterimText && this.isEmphasisMode) {
+                            this.processInterimForLiveMode(this.currentInterimText);
+                        }
+                    }, 1500);
+                }
+            }
+
+            smartChunkText(text) {
+                // Smart chunking algorithm for natural speech breaks
+                const chunks = [];
+                
+                // First try to split by sentence endings
+                let sentences = text.split(/([.!?]+[\s]*)/).filter(s => s.trim());
+                
+                // If no sentence endings, try other natural breaks
+                if (sentences.length <= 1) {
+                    // Try splitting by conjunctions and punctuation
+                    sentences = text.split(/([,;:]\s*|\s+(?:and|but|or|so|then|because)\s+)/i)
+                        .filter(s => s.trim() && s.length > 5);
+                }
+                
+                // If still too long, force split at word boundaries
+                if (sentences.length <= 1 && text.length > 80) {
+                    const words = text.split(/\s+/);
+                    const chunkSize = Math.ceil(words.length / Math.ceil(text.length / 60));
+                    
+                    for (let i = 0; i < words.length; i += chunkSize) {
+                        chunks.push(words.slice(i, i + chunkSize).join(' '));
+                    }
+                    return chunks;
+                }
+                
+                return sentences.length > 0 ? sentences : [text];
+            }
+
+            async processFinalTranscript(text, confidence) {
+                try {
+                    // Clear interim processing state
+                    this.lastTranslatedInterim = '';
+                    this.interimBuffer = '';
+                    
+                    // Remove any interim entries first
+                    this.subtitleHistory = this.subtitleHistory.filter(s => !s.isInterim);
+                    
+                    // For Live Mode, process more aggressively
+                    if (this.isEmphasisMode) {
+                        // Use smarter chunking for final transcripts in Live Mode
+                        const chunks = this.smartChunkText(text);
+                        
+                        for (const chunk of chunks) {
+                            if (chunk.trim().length > 2) {
+                                const translatedText = await this.translateText(chunk.trim(), this.targetLanguage.value);
+                                
+                                this.subtitleHistory.push({
+                                    original: chunk.trim(),
+                                    translated: translatedText,
+                                    confidence: confidence,
+                                    isInterim: false,
+                                    timestamp: Date.now()
+                                });
+                                
+                                // In Live Mode, keep only last 3
+                                if (this.subtitleHistory.length > 3) {
+                                    this.subtitleHistory.shift();
+                                }
+                                
+                                // Add small delay between chunks for readability
+                                if (chunks.length > 1 && chunk !== chunks[chunks.length - 1]) {
+                                    await new Promise(resolve => setTimeout(resolve, 300));
+                                }
+                            }
+                        }
+                        
+                        this.addToLog(text, this.subtitleHistory[this.subtitleHistory.length - 1]?.translated || text, confidence);
+                    } else {
+                        // Normal mode processing
+                        const sentences = this.splitIntoSentences(text);
+                        
+                        for (const sentence of sentences) {
+                            if (sentence.trim().length > 0) {
+                                const translatedText = await this.translateText(sentence.trim(), this.targetLanguage.value);
+                                
+                                this.subtitleHistory.push({
+                                    original: sentence.trim(),
+                                    translated: translatedText,
+                                    confidence: confidence,
+                                    isInterim: false,
+                                    timestamp: Date.now()
+                                });
+
+                                // Keep only last 4 subtitles for history
+                                if (this.subtitleHistory.length > 4) {
+                                    this.subtitleHistory.shift();
+                                }
+
+                                this.addToLog(sentence.trim(), translatedText, confidence);
+                            }
+                        }
+                    }
+
+                    // Display the subtitle history
+                    this.displaySubtitleHistory(this.subtitleHistory);
+                    
+                } catch (error) {
+                    console.error('Translation error:', error);
+                    this.subtitleHistory.push({
+                        original: text,
+                        translated: 'Translation unavailable',
+                        confidence: confidence,
+                        isInterim: false,
+                        timestamp: Date.now()
+                    });
+                    this.displaySubtitleHistory(this.subtitleHistory);
+                }
+            }
+
+            splitIntoSentences(text) {
+                // Split by sentence endings, but keep reasonable length
+                const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+                const result = [];
+
+                for (let sentence of sentences) {
+                    sentence = sentence.trim();
+                    if (sentence.length > 100) {
+                        // Split long sentences by commas or natural pauses
+                        const chunks = sentence.split(/[,;:]/).filter(s => s.trim().length > 0);
+                        result.push(...chunks);
+                    } else if (sentence.length > 0) {
+                        result.push(sentence);
+                    }
+                }
+
+                return result.length > 0 ? result : [text];
+            }
+
+            handleSpeechError(event) {
+                console.error('Speech recognition error:', event.error);
+                
+                switch (event.error) {
+                    case 'no-speech':
+                        // Don't show error for no speech, just continue
+                        break;
+                    case 'audio-capture':
+                        this.showError('Microphone not accessible. Please check your microphone settings.');
+                        this.stopListening();
+                        break;
+                    case 'not-allowed':
+                        this.hasPermission = false;
+                        this.showError('Microphone access denied. Please allow microphone access.');
+                        this.stopListening();
+                        break;
+                    default:
+                        this.showError(`Speech recognition error: ${event.error}`);
+                }
+            }
+
+            async translateText(text, targetLang) {
+                // Using MyMemory Translation API (free, no API key required)
+                const sourceLang = this.sourceLanguage.value.split('-')[0]; // Get language code only
+                const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|${targetLang}`;
+                
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    if (data.responseStatus === 200) {
+                        return data.responseData.translatedText;
+                    } else {
+                        throw new Error('Translation API error');
+                    }
+                } catch (error) {
+                    // Fallback: return original text if translation fails
+                    return `[Translation unavailable] ${text}`;
+                }
+            }
+
+            displaySubtitleHistory(subtitleHistory) {
+                if (this.isEmphasisMode) {
+                    this.displayEmphasisSubtitleHistory(subtitleHistory);
+                } else {
+                    this.displayNormalSubtitleHistory(subtitleHistory);
+                }
+            }
+
+            displayNormalSubtitleHistory(subtitleHistory) {
+                // Clear and rebuild for simplicity and to avoid sync issues
+                this.subtitleDisplay.innerHTML = '';
+                
+                subtitleHistory.forEach((subtitle, index) => {
+                    const subtitleBox = document.createElement('div');
+                    subtitleBox.className = 'subtitle-box';
+                    
+                    const isLatest = index === subtitleHistory.length - 1;
+                    const opacity = Math.max(0.4, 1 - (subtitleHistory.length - index - 1) * 0.3);
+                    
+                    subtitleBox.style.opacity = opacity;
+                    subtitleBox.style.marginBottom = '8px';
+                    
+                    // Add animation class for new content
+                    if (isLatest && !subtitle.isInterim) {
+                        subtitleBox.classList.add('new-content');
+                        setTimeout(() => {
+                            subtitleBox.classList.remove('new-content');
+                        }, 600);
+                    }
+                    
+                    const confidenceText = subtitle.isInterim ? 
+                        'Speaking...' : 
+                        `Confidence: ${Math.round((subtitle.confidence || 0) * 100)}%`;
+                    
+                    subtitleBox.innerHTML = `
+                        <div class="original-text" style="font-size: ${isLatest ? '1em' : '0.8em'}">${subtitle.original}</div>
+                        <div class="translated-text" style="font-size: ${isLatest ? '1.3em' : '1em'}; ${subtitle.isInterim ? 'font-style: italic; opacity: 0.7;' : ''}">${subtitle.translated}</div>
+                        <div class="confidence" style="font-size: 0.7em">${confidenceText}</div>
+                    `;
+
+                    this.subtitleDisplay.appendChild(subtitleBox);
+                });
+
+                // Auto-clear interim results
+                if (this.currentSubtitleTimeout) {
+                    clearTimeout(this.currentSubtitleTimeout);
+                }
+
+                // More aggressive cleanup in Live Mode
+                const cleanupDelay = this.isEmphasisMode ? 2000 : 3000;
+                
+                this.currentSubtitleTimeout = setTimeout(() => {
+                    const hasInterim = this.subtitleHistory.some(s => s.isInterim);
+                    if (hasInterim) {
+                        this.subtitleHistory = this.subtitleHistory.filter(s => !s.isInterim);
+                        if (this.subtitleHistory.length > 0) {
+                            this.displaySubtitleHistory(this.subtitleHistory);
+                        }
+                    }
+                }, cleanupDelay);
+            }
+
+            displayEmphasisSubtitleHistory(subtitleHistory) {
+                if (!this.emphasisOverlay) return;
+
+                const subtitleContainer = this.emphasisOverlay.querySelector('.emphasis-subtitle-container');
+                if (!subtitleContainer) return;
+                
+                // Clear and rebuild for simplicity
+                subtitleContainer.innerHTML = '';
+                
+                // Show only last 3 subtitles
+                const displayHistory = subtitleHistory.slice(-3);
+                
+                displayHistory.forEach((subtitle, index) => {
+                    const subtitleBox = document.createElement('div');
+                    subtitleBox.className = 'subtitle-box emphasis-subtitle';
+                    
+                    const isLatest = index === displayHistory.length - 1;
+                    
+                    if (isLatest) {
+                        subtitleBox.classList.add('latest');
+                        if (subtitle.isInterim) {
+                            subtitleBox.classList.add('updating');
+                        } else {
+                            subtitleBox.classList.add('new-content');
+                            setTimeout(() => {
+                                subtitleBox.classList.remove('new-content');
+                            }, 600);
+                        }
+                    } else if (index === displayHistory.length - 2) {
+                        subtitleBox.classList.add('older');
+                    } else {
+                        subtitleBox.classList.add('oldest');
+                    }
+                    
+                    // Only show translated text in live mode
+                    subtitleBox.innerHTML = `
+                        <div class="original-text" style="display: none;">${subtitle.original}</div>
+                        <div class="translated-text">${subtitle.translated}</div>
+                        <div class="confidence" style="display: none;"></div>
+                    `;
+
+                    subtitleContainer.appendChild(subtitleBox);
+                });
+            }
+
+            toggleEmphasisMode() {
+                if (this.isEmphasisMode) {
+                    this.exitEmphasisMode();
+                } else {
+                    this.enterEmphasisMode();
+                }
+            }
+
+            enterEmphasisMode() {
+                this.isEmphasisMode = true;
+                
+                // Create emphasis overlay
+                this.emphasisOverlay = document.createElement('div');
+                this.emphasisOverlay.className = 'emphasis-mode';
+                this.emphasisOverlay.innerHTML = `
+                    <div class="emphasis-controls">
+                        <button class="btn-exit" id="exitEmphasisBtn">Exit Live Mode</button>
+                    </div>
+                    <div class="emphasis-subtitle-container"></div>
+                    <div class="emphasis-info">
+                        Press ESC to exit live mode
+                    </div>
+                `;
+
+                document.body.appendChild(this.emphasisOverlay);
+                
+                // Add event listener to the exit button
+                const exitBtn = document.getElementById('exitEmphasisBtn');
+                exitBtn.addEventListener('click', () => this.exitEmphasisMode());
+                
+                // Hide main container
+                document.querySelector('.container').classList.add('hidden');
+                
+                // Update button text
+                this.emphasisBtn.textContent = 'Exit Live Mode';
+                this.emphasisBtn.className = 'btn btn-secondary';
+
+                // Add escape key listener
+                this.escKeyListener = (e) => {
+                    if (e.key === 'Escape') {
+                        this.exitEmphasisMode();
+                    }
+                };
+                document.addEventListener('keydown', this.escKeyListener);
+
+                // Clear regular subtitle display
+                this.subtitleDisplay.innerHTML = '';
+                
+                // Display current subtitles in emphasis mode
+                if (this.subtitleHistory.length > 0) {
+                    this.displayEmphasisSubtitleHistory(this.subtitleHistory);
+                }
+            }
+
+            exitEmphasisMode() {
+                this.isEmphasisMode = false;
+                
+                // Remove emphasis overlay
+                if (this.emphasisOverlay) {
+                    document.body.removeChild(this.emphasisOverlay);
+                    this.emphasisOverlay = null;
+                }
+                
+                // Show main container
+                document.querySelector('.container').classList.remove('hidden');
+                
+                // Update button text
+                this.emphasisBtn.textContent = 'Live Mode';
+                this.emphasisBtn.className = 'btn btn-primary';
+
+                // Remove escape key listener
+                if (this.escKeyListener) {
+                    document.removeEventListener('keydown', this.escKeyListener);
+                    this.escKeyListener = null;
+                }
+                
+                // Redisplay subtitles in normal mode
+                if (this.subtitleHistory.length > 0) {
+                    this.displayNormalSubtitleHistory(this.subtitleHistory);
+                }
+            }
+
+            addToLog(originalText, translatedText, confidence) {
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                
+                const timestamp = new Date().toLocaleTimeString();
+                
+                logEntry.innerHTML = `
+                    <div class="log-time">${timestamp}</div>
+                    <div><strong>Original:</strong> ${originalText}</div>
+                    <div><strong>Translation:</strong> ${translatedText}</div>
+                    <div><strong>Confidence:</strong> ${Math.round((confidence || 0) * 100)}%</div>
+                `;
+
+                // Remove placeholder text if it exists
+                if (this.logContainer.children.length === 1 && 
+                    this.logContainer.firstElementChild.textContent.includes('Translations will appear here')) {
+                    this.logContainer.innerHTML = '';
+                }
+
+                this.logContainer.insertBefore(logEntry, this.logContainer.firstChild);
+
+                // Limit log entries to 10
+                while (this.logContainer.children.length > 10) {
+                    this.logContainer.removeChild(this.logContainer.lastChild);
+                }
+            }
+
+            stopListening() {
+                this.isListening = false;
+                if (this.recognition) {
+                    this.recognition.stop();
+                }
+                
+                // Clear subtitle history and display
+                this.subtitleHistory = [];
+                this.currentInterimText = '';
+                this.lastFinalTranscript = '';
+                this.subtitleDisplay.innerHTML = '';
+                
+                if (this.isEmphasisMode && this.emphasisOverlay) {
+                    const container = this.emphasisOverlay.querySelector('.emphasis-subtitle-container');
+                    if (container) container.innerHTML = '';
+                }
+                
+                this.updateUI();
+                
+                if (this.currentSubtitleTimeout) {
+                    clearTimeout(this.currentSubtitleTimeout);
+                }
+            }
+
+            clearLog() {
+                this.logContainer.innerHTML = '<p style="opacity: 0.7; text-align: center;">Translations will appear here...</p>';
+            }
+
+            updateUI() {
+                if (this.isListening) {
+                    this.startBtn.disabled = true;
+                    this.stopBtn.disabled = false;
+                    this.statusIndicator.className = 'status-indicator listening';
+                    this.statusText.textContent = 'Listening...';
+                } else {
+                    this.startBtn.disabled = false;
+                    this.stopBtn.disabled = true;
+                    this.statusIndicator.className = 'status-indicator stopped';
+                    this.statusText.textContent = 'Stopped';
+                }
+            }
+
+            showError(message) {
+                this.errorContainer.innerHTML = `<div class="error-message">${message}</div>`;
+            }
+
+            clearError() {
+                this.errorContainer.innerHTML = '';
+            }
+        }
+
+        // Initialize the app when the page loads
+        let app;
+        document.addEventListener('DOMContentLoaded', () => {
+            app = new SubtitleTranslator();
+        });
+    </script>
+</body>
+</html>

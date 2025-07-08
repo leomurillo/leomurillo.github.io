@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Perfect Smile Feedback</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid #FFD814;
+            touch-action: none; /* Prevents scrolling on touch devices */
+			background-color: #FFD814;
+			border-radius: 20px;
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 1.2em;
+        }
+        svg {
+            margin-top: 20px;
+            border: 1px solid #000;
+        }
+    </style>
+</head>
+<body>
+    <h2>Draw Your Feedback</h2>
+    <canvas id="drawCanvas" width="300" height="150"></canvas>
+    <div id="result">Concavity: <span id="concavity">Neutral</span></div>
+    <svg id="smileSVG" width="300" height="150"></svg>
+
+    <script>
+        const canvas = document.getElementById("drawCanvas");
+        const ctx = canvas.getContext("2d");
+        const concavitySpan = document.getElementById("concavity");
+        const smileSVG = document.getElementById("smileSVG");
+
+        let drawing = false;
+        let points = [];
+
+        canvas.addEventListener("mousedown", startDrawing);
+        canvas.addEventListener("mousemove", draw);
+        canvas.addEventListener("mouseup", endDrawing);
+        canvas.addEventListener("mouseleave", endDrawing);
+
+        canvas.addEventListener("touchstart", (e) => startDrawing(e.touches[0]));
+        canvas.addEventListener("touchmove", (e) => draw(e.touches[0]));
+        canvas.addEventListener("touchend", endDrawing);
+
+        function startDrawing(event) {
+            drawing = true;
+            points = [];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const pos = getPosition(event);
+            points.push(pos);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+        }
+
+        function draw(event) {
+            if (!drawing) return;
+
+            const pos = getPosition(event);
+            points.push(pos);
+
+            ctx.lineWidth = 2;
+            ctx.lineCap = "round";
+            ctx.strokeStyle = "#000";
+
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+        }
+
+        function endDrawing() {
+            if (drawing) {
+                drawing = false;
+                ctx.closePath();
+
+                // Analyze the drawing
+                const result = analyzeDrawing(points);
+                const concavity = result.concavity;
+                concavitySpan.innerText = (concavity < -20 ? 'Sad Face' : concavity > 20 ? 'Smile' : 'Neutral') + ' (' + concavity + ')';
+
+                // Update the SVG smile
+                updateSmileSVG(result);
+            }
+        }
+
+        function getPosition(event) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top
+            };
+        }
+
+        // Function to analyze drawing and compute necessary parameters
+        function analyzeDrawing(points) {
+            if (points.length < 2) return { concavity: 0 };
+
+            // Calculate angle to rotate so that start-end line is horizontal
+            const start = points[0];
+            const end = points[points.length - 1];
+            const dx = end.x - start.x;
+            const dy = end.y - start.y;
+            const angle = Math.atan2(dy, dx);
+
+            // Rotate all points
+            const rotatedPoints = points.map(p => rotatePoint(p, start, -angle));
+
+            // Find maximum deviation from baseline (which is now horizontal)
+            let maxDeviation = 0;
+            rotatedPoints.forEach(p => {
+                const deviation = p.y - rotatedPoints[0].y; // Deviation from baseline
+                if (Math.abs(deviation) > Math.abs(maxDeviation)) {
+                    maxDeviation = deviation;
+                }
+            });
+
+            const concavity = maxDeviation;
+            return { concavity, rotatedPoints, angle, start };
+        }
+
+        // Function to rotate a point around an origin by a given angle
+        function rotatePoint(point, origin, angle) {
+            const x = point.x - origin.x;
+            const y = point.y - origin.y;
+            const cosA = Math.cos(angle);
+            const sinA = Math.sin(angle);
+            const xRot = x * cosA - y * sinA;
+            const yRot = x * sinA + y * cosA;
+            return { x: xRot, y: yRot };
+        }
+
+        // Function to update the SVG based on analysis
+        function updateSmileSVG(result) {
+            // Clear previous SVG content
+            while (smileSVG.firstChild) {
+                smileSVG.removeChild(smileSVG.firstChild);
+            }
+
+            const { concavity, rotatedPoints, angle, start } = result;
+
+            if (!rotatedPoints || rotatedPoints.length < 2) return;
+
+            // Determine rectangle dimensions
+            const startPoint = rotatedPoints[0];
+            const endPoint = rotatedPoints[rotatedPoints.length - 1];
+            const w = endPoint.x - startPoint.x;
+            const h = concavity;
+
+            // Construct the rectangle
+            // For smile, h is negative; for sad face, h is positive
+            // Determine endpoints and control points in rotated coordinate system
+            let P0, P3, P1, P2;
+
+            if (concavity < 0) {
+                // Sad face (concave up)
+                P0 = { x: startPoint.x, y: startPoint.y };
+                P3 = { x: endPoint.x, y: endPoint.y };
+                const controlY = P0.y + ( 4 * h / 3 );
+
+                P1 = { x: P0.x + w / 3, y: controlY };
+                P2 = { x: P0.x + 2 * w / 3, y: controlY };
+            } else if (concavity > 0) {
+                // Smile (concave down)
+                P0 = { x: startPoint.x, y: startPoint.y };
+                P3 = { x: endPoint.x, y: endPoint.y };
+                const controlY = P0.y + ( 4 * h / 3 );
+
+                P1 = { x: P0.x + w / 3, y: controlY };
+                P2 = { x: P0.x + 2 * w / 3, y: controlY };
+            } else {
+                // Neutral line
+                P0 = { x: startPoint.x, y: startPoint.y };
+                P3 = { x: endPoint.x, y: endPoint.y };
+                P1 = { x: P0.x + w / 3, y: P0.y };
+                P2 = { x: P0.x + 2 * w / 3, y: P0.y };
+            }
+
+            // Rotate control points back to original orientation
+            P0 = rotatePoint(P0, { x: 0, y: 0 }, angle);
+            P1 = rotatePoint(P1, { x: 0, y: 0 }, angle);
+            P2 = rotatePoint(P2, { x: 0, y: 0 }, angle);
+            P3 = rotatePoint(P3, { x: 0, y: 0 }, angle);
+
+            // Translate points back to original position
+            P0 = { x: P0.x + start.x, y: P0.y + start.y };
+            P1 = { x: P1.x + start.x, y: P1.y + start.y };
+            P2 = { x: P2.x + start.x, y: P2.y + start.y };
+            P3 = { x: P3.x + start.x, y: P3.y + start.y };
+
+            // Draw the Bezier curve in the SVG
+            const pathData = `
+                M ${P0.x}, ${P0.y}
+                C ${P1.x}, ${P1.y}
+                  ${P2.x}, ${P2.y}
+                  ${P3.x}, ${P3.y}
+            `;
+
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", pathData);
+            path.setAttribute("stroke", "black");
+            path.setAttribute("stroke-width", "4");
+            path.setAttribute("fill", "none");
+            smileSVG.appendChild(path);
+        }
+    </script>
+</body>
+</html>

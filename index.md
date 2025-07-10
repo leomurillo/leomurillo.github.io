@@ -1,8 +1,14 @@
-## Welcome to GitHub Pages
+## Welcome to Leo's GitHub Pages
 
-You can use the [editor on GitHub](https://github.com/leomurillo/leomurillo.github.io/edit/main/index.md) to maintain and preview the content for your website in Markdown files.
+I can use the [editor on GitHub](https://github.com/leomurillo/leomurillo.github.io/edit/main/index.md) to maintain and preview the content for my website in Markdown files.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+Whenever I commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in my site, from the content in my Markdown files.
+
+### Truth Obsession Model
+
+- [The Shooting-Stars Proof of Concept](/conti-rating.html)
+- [Draw a Smile prototype](/Smile2.html)
+- [Some vibe-coding prototypes](/continuous-rating-demo.html)
 
 ### Markdown
 

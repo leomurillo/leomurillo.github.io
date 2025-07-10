@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html><head>
+<style>
+/* Basic styles for the button */
+#placeOrderButton {
+  position: relative;
+  width: 360px; /*58*6+12*/
+  height: 60px;
+  background-color: #ff9900; /* Amazon's orange color */
+  border: none;
+  cursor: pointer;
+  overflow: hidden;
+  border-radius: 5px;
+}
+
+/* Progress bar background */
+#progressBar {
+  position: absolute;
+  top: 60%;
+  left: 35px;
+  width: 290px;
+  height: 26px;
+  background-color: #ddd;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+}
+
+/* Marks on the progress bar */
+.progress-mark {
+  flex: 1;
+  height: 100%;
+  position: relative;
+}
+
+.progress-mark::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  width: 1px;
+  height: 20px;
+  background-color: #aaa;
+  top: -5px;
+}
+
+.progress-mark:last-child::after {
+  display: none;
+}
+
+/* Filled progress indicator */
+#progressFill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 26px;
+  background-color: #f0c14b; /* Lighter orange */
+  width: 0%;
+  transition: width 0.1s;
+}
+
+/* Stars styling */
+#starRain {
+  height: 26px;
+}
+.star {
+  position: absolute;
+  top: 60%;
+  width: 290px;
+  height: 26px;
+  fill: #ff9900;
+  fill-opacity: 1;
+  z-index: 10;
+  stroke-width: 0px;
+  transform: translateY(-50%);
+  transition: fill 0.1s;
+}
+.darkspace
+{
+    fill: white;
+}
+.comet
+{
+    fill: black;
+  stroke:555;
+  stroke-width:3;
+}
+#star1 { left: calc(1*58px - 23px); }
+#star2 { left: calc(2*58px - 23px); }
+#star3 { left: calc(3*58px - 23px); }
+#star4 { left: calc(4*58px - 23px); }
+#star5 { left: calc(5*58px - 23px); }
+
+#buttonLabel {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: Arial, sans-serif;
+  color: white;
+  font-size: 18px;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<h2>PoC</h2>
+<button id="placeOrderButton">
+  <div id="progressBar">
+    <div id="progressFill"></div>
+
+  </div>
+<div id="starRain">
+<svg id="star1" class="star" viewBox="-323.6067977 -95.10565163 2118.033989 190.2113033" xmlns="http://www.w3.org/2000/svg">
+  <!-- Definitions -->
+  <defs>
+    <!-- Original Shooting Star Definition -->
+    <g id="shootingStar">
+	  <polygon class="comet" points="-74.89,-22.7 -63.68,0 -74.89,22.7 -323.61,58.78 -292.71,0 -323.61,-58.78"  />
+      <polygon class="comet" points="-50,0 -80.9,58.78 -15.45,47.55 30.9,95.11 40.45,29.39 100,0 40.45,-29.39 30.9,-95.11 -15.45,-47.55 -80.9,-58.78"  />
+	</g>
+	<mask id="starsMask">
+	
+	  <rect class="darkspace" width="2118.033989" height="190.2113033" x="-323.6067977" y="-95.10565163"  />
+	  
+	  <!-- First shootingStar -->
+      <use class="comet" href="#shootingStar" />
+      
+      <!-- Translate the other shootingStars -->
+      <use class="comet" href="#shootingStar" transform="translate(423.6067977, 0)"  />
+      <use class="comet" href="#shootingStar" transform="translate(847.2135955, 0)"  />
+      <use class="comet" href="#shootingStar" transform="translate(1270.820393, 0)"  />
+      <use class="comet" href="#shootingStar" transform="translate(1694.427191, 0)"  />
+	</mask>
+  </defs>
+	  
+
+  <rect width="2119" height="191" x="-323.61" y="-95.10565163" fill="#ff9900"  mask="url(#starsMask)"  />
+
+</svg></div><span id="buttonLabel">Place Order</span>
+
+</button>
+
+
+<script>
+// References to DOM elements
+const button = document.getElementById('placeOrderButton');
+const progressBar = document.getElementById('progressBar');
+const progressFill = document.getElementById('progressFill');
+const stars = document.querySelectorAll('.star');
+const buttonLabel = document.getElementById('buttonLabel');
+
+let rating = 0;
+
+// Mousemove event to update progress and stars
+button.addEventListener('mousemove', function(e) {
+  const rect = button.getBoundingClientRect();
+  const x = e.clientX - rect.left-29-5; // X position within the button
+  const width = rect.width-58-12;
+  const percentage = Math.min(Math.max(x / width, 0), 1);
+  const fillWidth = percentage * 100;
+
+  // Update progress fill
+  progressFill.style.width = fillWidth + '%';
+
+  // Determine rating based on mouse position
+  rating = Math.round(percentage * 500)/100;
+
+  // Update stars color based on rating
+  stars.forEach((star, index) => {
+    if (index < rating) {
+      star.style.fill = '#ffd700'; // Gold color for filled stars
+    } else {
+      star.style.fill = '#fff'; // White color for empty stars
+    }
+  });
+});
+
+// Mouseleave event to reset if needed
+button.addEventListener('mouseleave', function() {
+  progressFill.style.width = '0%';
+  stars.forEach(star => {
+    star.style.fill = '#fff';
+  });
+  rating = 0;
+});
+
+// Click event to submit the rating
+button.addEventListener('click', function() {
+  if (rating > 0) {
+    alert('You selected a rating of ' + rating + ' out of 5');
+    // Proceed with order submission and include the rating value
+  } else {
+    alert('Please select your satisfaction level before placing the order.');
+  }
+});
+</script>
+
+</body>
+</html>

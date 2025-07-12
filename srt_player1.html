@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRT Subtitle Player</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #e8e8e8;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+        }
+
+        .upload-area {
+            border: 2px dashed #444;
+            border-radius: 10px;
+            padding: 40px;
+            margin-bottom: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: #666;
+            background-color: #222;
+        }
+
+        .upload-area.dragover {
+            border-color: #888;
+            background-color: #2a2a2a;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .player {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .subtitle-display {
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .subtitle {
+            padding: 10px 20px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            min-height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .subtitle.previous {
+            color: #888;
+            font-size: 14px;
+            opacity: 0.6;
+        }
+
+        .subtitle.current {
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: #333;
+            border: 2px solid #555;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .subtitle.next {
+            color: #888;
+            font-size: 14px;
+            opacity: 0.6;
+        }
+
+        .controls {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        button {
+            background-color: #333;
+            color: #e8e8e8;
+            border: 1px solid #555;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background-color: #444;
+            border-color: #666;
+        }
+
+        button:active {
+            background-color: #222;
+        }
+
+        .time-info {
+            color: #aaa;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background-color: #333;
+            border-radius: 2px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #666;
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+
+        .instructions {
+            color: #aaa;
+            font-size: 12px;
+            margin-top: 20px;
+            line-height: 1.4;
+        }
+
+        /* Live Mode Styles */
+        .live-mode {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #1a1a1a;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            box-sizing: border-box;
+        }
+
+        .live-mode .subtitle-display {
+            min-height: auto;
+            height: 70vh;
+            gap: 30px;
+        }
+
+        .live-mode .subtitle.previous {
+            font-size: 24px;
+            opacity: 0.5;
+        }
+
+        .live-mode .subtitle.current {
+            font-size: 42px;
+            line-height: 1.3;
+            max-width: 90vw;
+            text-align: center;
+            padding: 30px 40px;
+        }
+
+        .live-mode .subtitle.next {
+            font-size: 24px;
+            opacity: 0.5;
+        }
+
+        .live-mode-exit {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: rgba(51, 51, 51, 0.8);
+            color: #e8e8e8;
+            border: 1px solid #555;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            z-index: 1001;
+        }
+
+        .live-mode-exit:hover {
+            background-color: rgba(68, 68, 68, 0.9);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="upload-area" id="upload-area">
+            <h2>Drop SRT file here or click to select</h2>
+            <p style="color: #aaa; margin-top: 10px;">Supports .srt subtitle files</p>
+            <input type="file" id="file-input" accept=".srt" />
+        </div>
+
+        <div class="player" id="player">
+            <div class="subtitle-display">
+                <div class="subtitle previous" id="prev-subtitle"></div>
+                <div class="subtitle current" id="current-subtitle">Ready to play...</div>
+                <div class="subtitle next" id="next-subtitle"></div>
+            </div>
+
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+
+            <div class="controls">
+                <button id="prev-btn">← Previous</button>
+                <button id="play-pause-btn">Play</button>
+                <button id="next-btn">Next →</button>
+                <button id="reset-btn">Reset</button>
+                <button id="live-mode-btn">Live Mode</button>
+            </div>
+
+            <div class="time-info" id="time-info">
+                00:00:00 / 00:00:00
+            </div>
+
+            <div class="instructions">
+                Use arrow keys (← →) to navigate • Spacebar to play/pause • R to reset • L for live mode • ESC to exit live mode
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class SRTPlayer {
+            constructor() {
+                this.subtitles = [];
+                this.currentIndex = 0;
+                this.isPlaying = false;
+                this.startTime = null;
+                this.playStartTime = 0;
+                this.animationFrame = null;
+                this.isLiveMode = false;
+                
+                this.initializeElements();
+                this.setupEventListeners();
+            }
+
+            initializeElements() {
+                this.uploadArea = document.getElementById('upload-area');
+                this.fileInput = document.getElementById('file-input');
+                this.player = document.getElementById('player');
+                this.prevSubtitle = document.getElementById('prev-subtitle');
+                this.currentSubtitle = document.getElementById('current-subtitle');
+                this.nextSubtitle = document.getElementById('next-subtitle');
+                this.playPauseBtn = document.getElementById('play-pause-btn');
+                this.prevBtn = document.getElementById('prev-btn');
+                this.nextBtn = document.getElementById('next-btn');
+                this.resetBtn = document.getElementById('reset-btn');
+                this.liveModeBtn = document.getElementById('live-mode-btn');
+                this.timeInfo = document.getElementById('time-info');
+                this.progressFill = document.getElementById('progress-fill');
+            }
+
+            setupEventListeners() {
+                // File upload
+                this.uploadArea.addEventListener('click', () => this.fileInput.click());
+                this.uploadArea.addEventListener('dragover', this.handleDragOver.bind(this));
+                this.uploadArea.addEventListener('drop', this.handleDrop.bind(this));
+                this.fileInput.addEventListener('change', this.handleFileSelect.bind(this));
+
+                // Controls
+                this.playPauseBtn.addEventListener('click', this.togglePlayPause.bind(this));
+                this.prevBtn.addEventListener('click', () => this.navigate(-1));
+                this.nextBtn.addEventListener('click', () => this.navigate(1));
+                this.resetBtn.addEventListener('click', this.reset.bind(this));
+                
+                // Check if live mode button exists
+                console.log('Live mode button:', this.liveModeBtn);
+                if (this.liveModeBtn) {
+                    this.liveModeBtn.addEventListener('click', () => {
+                        console.log('Live mode button clicked');
+                        this.toggleLiveMode();
+                    });
+                } else {
+                    console.error('Live mode button not found!');
+                }
+
+                // Keyboard controls
+                document.addEventListener('keydown', this.handleKeydown.bind(this));
+            }
+
+            handleDragOver(e) {
+                e.preventDefault();
+                this.uploadArea.classList.add('dragover');
+            }
+
+            handleDrop(e) {
+                e.preventDefault();
+                this.uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    this.loadFile(files[0]);
+                }
+            }
+
+            handleFileSelect(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    this.loadFile(file);
+                }
+            }
+
+            async loadFile(file) {
+                if (!file.name.toLowerCase().endsWith('.srt')) {
+                    alert('Please select an SRT file');
+                    return;
+                }
+
+                try {
+                    const text = await file.text();
+                    this.parseSRT(text);
+                    this.showPlayer();
+                    this.updateDisplay();
+                } catch (error) {
+                    alert('Error reading file: ' + error.message);
+                }
+            }
+
+            parseSRT(text) {
+                this.subtitles = [];
+                const blocks = text.trim().split(/\n\s*\n/);
+
+                for (const block of blocks) {
+                    const lines = block.trim().split('\n');
+                    if (lines.length >= 3) {
+                        const timeMatch = lines[1].match(/(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})/);
+                        if (timeMatch) {
+                            const startTime = this.parseTime(timeMatch[1]);
+                            const endTime = this.parseTime(timeMatch[2]);
+                            const text = lines.slice(2).join('\n');
+                            
+                            this.subtitles.push({
+                                start: startTime,
+                                end: endTime,
+                                text: text.trim()
+                            });
+                        }
+                    }
+                }
+            }
+
+            parseTime(timeStr) {
+                const [time, ms] = timeStr.split(',');
+                const [hours, minutes, seconds] = time.split(':').map(Number);
+                return hours * 3600 + minutes * 60 + seconds + ms / 1000;
+            }
+
+            formatTime(seconds) {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            showPlayer() {
+                this.uploadArea.style.display = 'none';
+                this.player.style.display = 'block';
+            }
+
+            updateDisplay() {
+                // Previous subtitle
+                if (this.currentIndex > 0) {
+                    this.prevSubtitle.innerHTML = this.subtitles[this.currentIndex - 1].text;
+                } else {
+                    this.prevSubtitle.innerHTML = '';
+                }
+
+                // Current subtitle
+                if (this.currentIndex < this.subtitles.length) {
+                    this.currentSubtitle.innerHTML = this.subtitles[this.currentIndex].text;
+                } else {
+                    this.currentSubtitle.innerHTML = 'End of subtitles';
+                }
+
+                // Next subtitle
+                if (this.currentIndex < this.subtitles.length - 1) {
+                    this.nextSubtitle.innerHTML = this.subtitles[this.currentIndex + 1].text;
+                } else {
+                    this.nextSubtitle.innerHTML = '';
+                }
+
+                // Update live mode display if active
+                this.updateLiveModeDisplay();
+
+                this.updateTimeInfo();
+                this.updateProgress();
+            }
+
+            updateTimeInfo() {
+                if (this.subtitles.length === 0) return;
+                
+                const totalDuration = this.subtitles[this.subtitles.length - 1].end;
+                const currentTime = this.getCurrentTime();
+                
+                this.timeInfo.textContent = `${this.formatTime(currentTime)} / ${this.formatTime(totalDuration)}`;
+            }
+
+            updateProgress() {
+                if (this.subtitles.length === 0) return;
+                
+                const totalDuration = this.subtitles[this.subtitles.length - 1].end;
+                const currentTime = this.getCurrentTime();
+                const progress = (currentTime / totalDuration) * 100;
+                
+                this.progressFill.style.width = `${Math.min(progress, 100)}%`;
+            }
+
+            getCurrentTime() {
+                if (!this.isPlaying || !this.startTime) {
+                    return this.currentIndex < this.subtitles.length ? this.subtitles[this.currentIndex].start : 0;
+                }
+                
+                const elapsed = (Date.now() - this.startTime) / 1000;
+                return this.playStartTime + elapsed;
+            }
+
+            navigate(direction) {
+                const newIndex = this.currentIndex + direction;
+                if (newIndex >= 0 && newIndex < this.subtitles.length) {
+                    this.currentIndex = newIndex;
+                    this.updateDisplay();
+                    
+                    if (this.isPlaying) {
+                        // Update the playback start time to sync with new position
+                        this.playStartTime = this.subtitles[this.currentIndex].start;
+                        this.startTime = Date.now();
+                    }
+                }
+            }
+
+            togglePlayPause() {
+                if (this.subtitles.length === 0) return;
+                
+                this.isPlaying = !this.isPlaying;
+                this.playPauseBtn.textContent = this.isPlaying ? 'Pause' : 'Play';
+                
+                if (this.isPlaying) {
+                    // Set the absolute start time for playback
+                    this.playStartTime = this.currentIndex < this.subtitles.length ? this.subtitles[this.currentIndex].start : 0;
+                    this.startTime = Date.now();
+                    this.startPlayback();
+                } else {
+                    this.stopPlayback();
+                }
+            }
+
+            startPlayback() {
+                const updateLoop = () => {
+                    if (!this.isPlaying) return;
+                    
+                    const currentTime = this.getCurrentTime();
+                    
+                    // Find the correct subtitle for the current time
+                    let newIndex = this.currentIndex;
+                    
+                    // Check if we need to advance
+                    while (newIndex < this.subtitles.length - 1 && 
+                           currentTime >= this.subtitles[newIndex + 1].start) {
+                        newIndex++;
+                    }
+                    
+                    // Check if we need to go back
+                    while (newIndex > 0 && 
+                           currentTime < this.subtitles[newIndex].start) {
+                        newIndex--;
+                    }
+                    
+                    // Update display if subtitle changed
+                    if (newIndex !== this.currentIndex) {
+                        this.currentIndex = newIndex;
+                        this.updateDisplay();
+                    }
+                    
+                    // Check if we've reached the end
+                    if (this.subtitles.length > 0 && 
+                        currentTime >= this.subtitles[this.subtitles.length - 1].end) {
+                        this.isPlaying = false;
+                        this.playPauseBtn.textContent = 'Play';
+                        return;
+                    }
+                    
+                    this.updateTimeInfo();
+                    this.updateProgress();
+                    this.animationFrame = requestAnimationFrame(updateLoop);
+                };
+                
+                updateLoop();
+            }
+
+            stopPlayback() {
+                if (this.animationFrame) {
+                    cancelAnimationFrame(this.animationFrame);
+                }
+            }
+
+            reset() {
+                this.isPlaying = false;
+                this.currentIndex = 0;
+                this.startTime = null;
+                this.playStartTime = 0;
+                this.playPauseBtn.textContent = 'Play';
+                this.stopPlayback();
+                this.updateDisplay();
+            }
+
+            handleKeydown(e) {
+                console.log('Key pressed:', e.key);
+                if (this.subtitles.length === 0 && e.key !== 'l' && e.key !== 'L') return;
+                
+                switch(e.key) {
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        this.navigate(-1);
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        this.navigate(1);
+                        break;
+                    case ' ':
+                        e.preventDefault();
+                        this.togglePlayPause();
+                        break;
+                    case 'r':
+                    case 'R':
+                        e.preventDefault();
+                        this.reset();
+                        break;
+                    case 'l':
+                    case 'L':
+                        console.log('L key pressed, calling toggleLiveMode');
+                        e.preventDefault();
+                        this.toggleLiveMode();
+                        break;
+                    case 'Escape':
+                        if (this.isLiveMode) {
+                            e.preventDefault();
+                            this.toggleLiveMode();
+                        }
+                        break;
+                }
+            }
+
+            toggleLiveMode() {
+                console.log('Toggle live mode called, current state:', this.isLiveMode);
+                this.isLiveMode = !this.isLiveMode;
+                
+                if (this.isLiveMode) {
+                    console.log('Entering live mode');
+                    this.enterLiveMode();
+                } else {
+                    console.log('Exiting live mode');
+                    this.exitLiveMode();
+                }
+            }
+
+            enterLiveMode() {
+                console.log('enterLiveMode called');
+                // Create live mode overlay
+                this.liveOverlay = document.createElement('div');
+                this.liveOverlay.className = 'live-mode';
+                console.log('Created live overlay:', this.liveOverlay);
+                
+                // Create exit button
+                const exitBtn = document.createElement('button');
+                exitBtn.className = 'live-mode-exit';
+                exitBtn.textContent = 'Exit Live Mode (ESC)';
+                exitBtn.addEventListener('click', () => this.toggleLiveMode());
+                
+                // Create subtitle display for live mode
+                const subtitleDisplay = document.createElement('div');
+                subtitleDisplay.className = 'subtitle-display';
+                
+                this.livePrevSubtitle = document.createElement('div');
+                this.livePrevSubtitle.className = 'subtitle previous';
+                this.liveCurrentSubtitle = document.createElement('div');
+                this.liveCurrentSubtitle.className = 'subtitle current';
+                this.liveNextSubtitle = document.createElement('div');
+                this.liveNextSubtitle.className = 'subtitle next';
+                
+                subtitleDisplay.appendChild(this.livePrevSubtitle);
+                subtitleDisplay.appendChild(this.liveCurrentSubtitle);
+                subtitleDisplay.appendChild(this.liveNextSubtitle);
+                
+                this.liveOverlay.appendChild(exitBtn);
+                this.liveOverlay.appendChild(subtitleDisplay);
+                
+                console.log('About to append overlay to body');
+                document.body.appendChild(this.liveOverlay);
+                console.log('Overlay appended to body');
+                
+                if (this.liveModeBtn) {
+                    this.liveModeBtn.textContent = 'Exit Live Mode';
+                }
+                
+                // Update live mode display
+                this.updateLiveModeDisplay();
+            }
+
+            exitLiveMode() {
+                if (this.liveOverlay) {
+                    document.body.removeChild(this.liveOverlay);
+                    this.liveOverlay = null;
+                }
+                this.liveModeBtn.textContent = 'Live Mode';
+            }
+
+            updateLiveModeDisplay() {
+                if (!this.isLiveMode || !this.liveOverlay) return;
+                
+                // Previous subtitle
+                if (this.currentIndex > 0) {
+                    this.livePrevSubtitle.innerHTML = this.subtitles[this.currentIndex - 1].text;
+                } else {
+                    this.livePrevSubtitle.innerHTML = '';
+                }
+
+                // Current subtitle
+                if (this.currentIndex < this.subtitles.length) {
+                    this.liveCurrentSubtitle.innerHTML = this.subtitles[this.currentIndex].text;
+                } else {
+                    this.liveCurrentSubtitle.innerHTML = 'End of subtitles';
+                }
+
+                // Next subtitle
+                if (this.currentIndex < this.subtitles.length - 1) {
+                    this.liveNextSubtitle.innerHTML = this.subtitles[this.currentIndex + 1].text;
+                } else {
+                    this.liveNextSubtitle.innerHTML = '';
+                }
+            }
+        }
+
+        // Initialize the player when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new SRTPlayer();
+        });
+    </script>
+</body>
+</html>

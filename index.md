@@ -12,7 +12,7 @@ Whenever I commit to this repository, GitHub Pages will run [Jekyll](https://jek
 
 ### SRT Player
 
-Takes an SRT file to play it smoothly on your browser. All local javscript.
+[Takes an SRT file to play it smoothly on your browser](/srt_player1.html). All local javscript.
 
 ### Markdown
 

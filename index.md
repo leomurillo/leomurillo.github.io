@@ -10,6 +10,10 @@ Whenever I commit to this repository, GitHub Pages will run [Jekyll](https://jek
 - [Draw a Smile prototype](/Smile2.html)
 - [Some vibe-coding prototypes](/continuous-rating-demo.html)
 
+### SRT Player
+
+Takes an SRT file to play it smoothly on your browser. All local javscript.
+
 ### Markdown
 
 Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for

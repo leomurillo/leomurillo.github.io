@@ -14,6 +14,10 @@ Whenever I commit to this repository, GitHub Pages will run [Jekyll](https://jek
 
 [Takes an SRT file to play it smoothly on your browser](/srt_player1.html). All local javscript.
 
+### TV Slider Show Demo
+
+[Check it here](/tv_slideshow.html)
+
 ### Markdown
 
 Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for

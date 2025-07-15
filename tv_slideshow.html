@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Slideshow</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            font-family: 'Arial', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slideshow-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .slide {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        .slide.image-slide {
+            background: #000;
+        }
+
+        .image-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            filter: blur(20px) brightness(0.3);
+            transform: scale(1.1);
+        }
+
+        .slide-image {
+            position: relative;
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            z-index: 1;
+        }
+
+        .slide.active {
+            opacity: 1;
+        }
+
+        .slide-content {
+            text-align: center;
+            color: white;
+            padding: 40px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .slide-title {
+            font-size: 3em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .slide-description {
+            font-size: 1.5em;
+            line-height: 1.6;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        .progress-bar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #4ecdc4);
+            border-radius: 2px;
+            width: 0%;
+            transition: width linear;
+        }
+
+        .navigation {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+
+        .nav-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .nav-dot.active {
+            background: white;
+            transform: scale(1.2);
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .logo {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 1.5em;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <div class="slideshow-container">
+        <div class="logo">Your Business</div>
+        
+        <div class="controls">
+            <button class="control-btn" onclick="toggleAutoplay()">⏸️ Pause</button>
+            <button class="control-btn" onclick="previousSlide()">◀️ Prev</button>
+            <button class="control-btn" onclick="nextSlide()">▶️ Next</button>
+        </div>
+
+        <div id="slides-container"></div>
+
+        <div class="navigation" id="navigation"></div>
+        
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURATION - Edit this section to customize your slideshow
+        const slideConfig = {
+            // Time each slide is shown (in milliseconds)
+            slideInterval: 8000,
+            
+            // Your slides data - add/remove/edit as needed
+            slides: [
+                {
+                    type: "text", // "text" or "image"
+                    title: "Bienvenidos a Explorandia!",
+                    description: "Donde tu mente se abre a cosas nuevas!",
+                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                },
+                {
+                    type: "image", // Image-only slide
+                    imageUrl: "img1.jpg" // Replace with your image URL
+                },
+                {
+                    type: "text",
+                    title: "Entradas",
+                    description: "₡8000 adultos, ₡5000 Niños y Ciudadanos de Oro, ₡15000 turistas",
+                    background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
+                },
+                {
+                    type: "image", // Another image slide
+                    imageUrl: "img2.jpg" // Replace with your image URL
+                },
+                {
+                    type: "image", // Another image slide
+                    imageUrl: "img3.jpg" // Replace with your image URL
+                },
+                {
+                    type: "text",
+                    title: "Visitanos pronto!",
+                    description: "Del Parque La Merced, 250 m Este",
+                    background: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"
+                },
+                {
+                    type: "image", // Another image slide
+                    imageUrl: "img4.jpg" // Replace with your image URL
+                },
+                {
+                    type: "image", // Another image slide
+                    imageUrl: "img5.jpg" // Replace with your image URL
+                }
+            ]
+        };
+
+        // Application state
+        let currentSlide = 0;
+        let isAutoplay = true;
+        let slideTimer;
+        let progressTimer;
+
+        // Initialize the slideshow
+        function initSlideshow() {
+            createSlides();
+            createNavigation();
+            showSlide(0);
+            if (isAutoplay) {
+                startAutoplay();
+            }
+        }
+
+        // Create slide elements
+        function createSlides() {
+            const container = document.getElementById('slides-container');
+            container.innerHTML = '';
+
+            slideConfig.slides.forEach((slide, index) => {
+                const slideElement = document.createElement('div');
+                slideElement.className = 'slide';
+                
+                if (slide.type === 'image') {
+                    // Image slide
+                    slideElement.classList.add('image-slide');
+                    slideElement.innerHTML = `
+                        <div class="image-background" style="background-image: url('${slide.imageUrl}')"></div>
+                        <img class="slide-image" src="${slide.imageUrl}" alt="Slide ${index + 1}" />
+                    `;
+                } else {
+                    // Text slide
+                    slideElement.style.background = slide.background;
+                    slideElement.innerHTML = `
+                        <div class="slide-content">
+                            <div class="slide-title">${slide.title}</div>
+                            <div class="slide-description">${slide.description}</div>
+                        </div>
+                    `;
+                }
+                
+                container.appendChild(slideElement);
+            });
+        }
+
+        // Create navigation dots
+        function createNavigation() {
+            const nav = document.getElementById('navigation');
+            nav.innerHTML = '';
+
+            slideConfig.slides.forEach((_, index) => {
+                const dot = document.createElement('div');
+                dot.className = 'nav-dot';
+                dot.onclick = () => goToSlide(index);
+                nav.appendChild(dot);
+            });
+        }
+
+        // Show specific slide
+        function showSlide(index) {
+            const slides = document.querySelectorAll('.slide');
+            const dots = document.querySelectorAll('.nav-dot');
+
+            // Remove active class from all slides and dots
+            slides.forEach(slide => slide.classList.remove('active'));
+            dots.forEach(dot => dot.classList.remove('active'));
+
+            // Add active class to current slide and dot
+            if (slides[index]) {
+                slides[index].classList.add('active');
+                dots[index].classList.add('active');
+            }
+
+            currentSlide = index;
+            resetProgress();
+        }
+
+        // Go to specific slide
+        function goToSlide(index) {
+            if (index >= 0 && index < slideConfig.slides.length) {
+                showSlide(index);
+                if (isAutoplay) {
+                    restartAutoplay();
+                }
+            }
+        }
+
+        // Next slide
+        function nextSlide() {
+            const nextIndex = (currentSlide + 1) % slideConfig.slides.length;
+            goToSlide(nextIndex);
+        }
+
+        // Previous slide
+        function previousSlide() {
+            const prevIndex = (currentSlide - 1 + slideConfig.slides.length) % slideConfig.slides.length;
+            goToSlide(prevIndex);
+        }
+
+        // Start autoplay
+        function startAutoplay() {
+            if (slideTimer) clearInterval(slideTimer);
+            slideTimer = setInterval(nextSlide, slideConfig.slideInterval);
+            startProgress();
+        }
+
+        // Stop autoplay
+        function stopAutoplay() {
+            if (slideTimer) {
+                clearInterval(slideTimer);
+                slideTimer = null;
+            }
+            stopProgress();
+        }
+
+        // Restart autoplay
+        function restartAutoplay() {
+            stopAutoplay();
+            if (isAutoplay) {
+                startAutoplay();
+            }
+        }
+
+        // Toggle autoplay
+        function toggleAutoplay() {
+            isAutoplay = !isAutoplay;
+            const btn = document.querySelector('.control-btn');
+            
+            if (isAutoplay) {
+                btn.innerHTML = '⏸️ Pause';
+                startAutoplay();
+            } else {
+                btn.innerHTML = '▶️ Play';
+                stopAutoplay();
+            }
+        }
+
+        // Progress bar animation
+        function startProgress() {
+            const progressFill = document.getElementById('progress-fill');
+            progressFill.style.transition = `width ${slideConfig.slideInterval}ms linear`;
+            progressFill.style.width = '100%';
+        }
+
+        function stopProgress() {
+            const progressFill = document.getElementById('progress-fill');
+            if (progressTimer) clearTimeout(progressTimer);
+            progressFill.style.transition = 'none';
+            progressFill.style.width = '0%';
+        }
+
+        function resetProgress() {
+            const progressFill = document.getElementById('progress-fill');
+            progressFill.style.transition = 'none';
+            progressFill.style.width = '0%';
+            
+            if (isAutoplay) {
+                setTimeout(() => {
+                    startProgress();
+                }, 50);
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowLeft':
+                    previousSlide();
+                    break;
+                case 'ArrowRight':
+                    nextSlide();
+                    break;
+                case ' ':
+                    e.preventDefault();
+                    toggleAutoplay();
+                    break;
+            }
+        });
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', initSlideshow);
+    </script>
+</body>
+</html>

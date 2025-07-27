@@ -1,0 +1,1844 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mateloto</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .menu-toggle {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
+        .menu {
+            position: fixed;
+            top: 0;
+            right: -250px;
+            width: 250px;
+            height: 100%;
+            background-color: #34495e;
+            transition: right 0.3s ease;
+            z-index: 1000;
+            padding-top: 60px;
+        }
+
+        .menu.open {
+            right: 0;
+        }
+
+        .menu-item {
+            display: block;
+            width: 100%;
+            padding: 1rem;
+            color: white;
+            text-decoration: none;
+            border: none;
+            background: none;
+            text-align: left;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .menu-item:hover {
+            background-color: #2c3e50;
+        }
+
+        .menu-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: none;
+            z-index: 999;
+        }
+
+        .menu-backdrop.open {
+            display: block;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        .mode-selection {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .mode-button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 1.5rem;
+            font-size: 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            text-align: center;
+        }
+
+        .mode-button:hover {
+            background-color: #2980b9;
+        }
+
+        .mode-button small {
+            display: block;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            opacity: 0.9;
+        }
+
+        /* Caller Mode Styles */
+        .caller-controls {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .next-button {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+        }
+
+        .next-button:hover {
+            background-color: #229954;
+        }
+
+        .problem-display {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 1rem 0;
+            padding: 1rem;
+            background-color: #34495e;
+            color: white;
+            border-radius: 8px;
+            display: inline-block;
+            min-width: 200px;
+        }
+
+        .navigation-arrows {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .nav-arrow {
+            background-color: #34495e;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            font-size: 1.2rem;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .nav-arrow:hover:not(:disabled) {
+            background-color: #2c3e50;
+        }
+
+        .nav-arrow:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .multiplication-counter {
+            font-size: 1.1rem;
+            margin: 1rem 0;
+            color: #666;
+        }
+
+        .grid-container {
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        .grid-toggle {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .triangular-grid {
+            display: inline-block;
+            text-align: left;
+        }
+
+        .grid-row {
+            display: flex;
+            justify-content: center;
+            margin: 2px 0;
+        }
+
+        .grid-cell {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #ddd;
+            margin: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            background-color: white;
+            cursor: default;
+            transition: background-color 0.3s;
+        }
+
+        .grid-cell.called {
+            background-color: #27ae60;
+            color: white;
+            font-weight: bold;
+        }
+
+        .validate-section {
+            margin-top: 2rem;
+            text-align: center;
+        }
+
+        .validate-button {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 0.5rem;
+        }
+
+        .validate-input {
+            padding: 0.75rem;
+            font-size: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+
+        /* Player Mode Styles */
+        .scorecard-container {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .scorecard {
+            display: inline-grid;
+            grid-template-columns: repeat(5, 60px);
+            gap: 4px;
+            margin: 0.5rem 0;
+            padding: 1rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .scorecard-header {
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 40px;
+        }
+
+        .scorecard-cell {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            background-color: #f8f9fa;
+            transition: all 0.3s;
+            border-radius: 4px;
+            user-select: none;
+        }
+
+        .scorecard-cell:hover {
+            background-color: #e9ecef;
+            transform: scale(1.05);
+        }
+
+        .scorecard-cell.free {
+            font-size: 2rem;
+            cursor: default;
+            background-color: #ffebee;
+        }
+
+        .scorecard-cell.chipped {
+            background-color: #4caf50;
+            color: white;
+            border-color: #388e3c;
+        }
+
+        .scorecard-number {
+            font-size: 1.1rem;
+            color: #666;
+            margin: 0.5rem 0;
+        }
+
+        .answer-section {
+            margin: 0.5rem 0;
+            text-align: center;
+        }
+
+        .answer-input {
+            padding: 0.75rem;
+            font-size: 1.2rem;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+            text-align: center;
+        }
+
+        .multiplication-options {
+            margin: 0.25rem 0;
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .mult-option {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1.1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .mult-option:hover {
+            background-color: #2980b9;
+        }
+
+        .player-controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin: 0.5rem 0;
+        }
+
+        .control-button {
+            background-color: #95a5a6;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .control-button:hover:not(:disabled) {
+            background-color: #7f8c8d;
+        }
+
+        .control-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .sync-button {
+            background-color: #9b59b6;
+        }
+
+        .sync-button:hover {
+            background-color: #8e44ad;
+        }
+
+        /* Both Mode Styles */
+        .both-mode-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .locutor-button {
+            background-color: #f39c12;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            align-self: center;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 2000;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .modal h2 {
+            margin-bottom: 1rem;
+            color: #2c3e50;
+        }
+
+        .modal p {
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+
+        /* QR Code Styles */
+        #qrcode {
+            display: flex;
+            justify-content: center;
+            margin: 1rem 0;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 600px) {
+            .scorecard {
+                grid-template-columns: repeat(5, 50px);
+            }
+
+            .scorecard-cell {
+                width: 50px;
+                height: 50px;
+                font-size: 1rem;
+            }
+
+            .problem-display {
+                font-size: 2rem;
+                min-width: 150px;
+            }
+
+            .grid-cell {
+                width: 30px;
+                height: 30px;
+                font-size: 0.7rem;
+            }
+        }
+
+        /* Win Animation */
+        @keyframes winPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .win-animation {
+            animation: winPulse 0.5s ease-in-out 3;
+        }
+
+        .win-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #27ae60;
+            color: white;
+            padding: 2rem 3rem;
+            border-radius: 8px;
+            font-size: 2rem;
+            font-weight: bold;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 3000;
+            display: none;
+        }
+
+        .win-message.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>Mateloto</h1>
+        <button class="menu-toggle" onclick="toggleMenu()">☰</button>
+    </div>
+
+    <!-- Menu -->
+    <div class="menu-backdrop" onclick="toggleMenu()"></div>
+    <div class="menu">
+        <button class="menu-item" onclick="resetGame()">
+            <span data-lang="menu_reset">Reiniciar</span>
+        </button>
+        <button class="menu-item" onclick="showInstructions()">
+            <span data-lang="menu_instructions">Instrucciones</span>
+        </button>
+        <button class="menu-item" onclick="toggleLanguage()">
+            <span data-lang="menu_language">Language</span>
+        </button>
+        <button class="menu-item" onclick="showAbout()">
+            <span data-lang="menu_about">Sobre...</span>
+        </button>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Mode Selection Screen -->
+        <div id="modeSelection" class="screen active">
+            <div class="mode-selection">
+                <button class="mode-button" onclick="startCallerMode()">
+                    <span data-lang="mode_caller">Locutor</span>
+                    <small data-lang="mode_caller_desc">(Caller)</small>
+                </button>
+                <button class="mode-button" onclick="startPlayerMode()">
+                    <span data-lang="mode_player">Jugador</span>
+                    <small data-lang="mode_player_desc">(Player)</small>
+                </button>
+                <button class="mode-button" onclick="startBothMode()">
+                    <span data-lang="mode_both">Ambos</span>
+                    <small data-lang="mode_both_desc">(Both)</small>
+                </button>
+            </div>
+        </div>
+
+        <!-- Caller Mode Screen -->
+        <div id="callerMode" class="screen">
+            <div class="caller-controls">
+                <button class="next-button" onclick="callNextProblem()">
+                    <span data-lang="next_button">Siguiente >></span>
+                </button>
+                <div class="problem-display" id="problemDisplay">-</div>
+                <div class="navigation-arrows">
+                    <button class="nav-arrow" onclick="navigateProblem(-1)" id="prevButton">&lt;</button>
+                    <button class="nav-arrow" onclick="navigateProblem(1)" id="nextButton">&gt;</button>
+                </div>
+                <div class="multiplication-counter">
+                    <span data-lang="multiplication_label">Multiplication:</span> 
+                    <span id="problemCounter">0/0</span>
+                </div>
+            </div>
+
+            <div class="grid-container">
+                <button class="grid-toggle" onclick="toggleGridDisplay()" id="gridToggle">R/</button>
+                <div class="triangular-grid" id="triangularGrid"></div>
+            </div>
+
+            <div class="validate-section">
+                <button class="validate-button" onclick="validateScorecard()">
+                    <span data-lang="validate_button">Validar Cartón</span>
+                </button>
+                <input type="text" class="validate-input" id="validateInput" placeholder="ID del cartón">
+            </div>
+        </div>
+
+        <!-- Player Mode Screen -->
+        <div id="playerMode" class="screen">
+            <div class="scorecard-container">
+                <div class="scorecard" id="playerScorecard">
+                    <!-- Scorecard will be generated dynamically -->
+                </div>
+                <div class="scorecard-number">
+                    <span data-lang="scorecard_label">Cartón</span> #<span id="scorecardNumber"></span>
+                </div>
+            </div>
+
+            <div class="answer-section">
+                <input type="number" class="answer-input" id="answerInput" 
+                    placeholder="Ingresa respuesta" 
+                    data-lang-placeholder="answer_placeholder"
+                    oninput="checkAnswer()">
+                <div class="multiplication-options" id="multiplicationOptions"></div>
+            </div>
+
+            <div class="player-controls">
+                <button class="control-button" onclick="undo()" id="undoButton">⟲</button>
+                <button class="control-button" onclick="redo()" id="redoButton">⟳</button>
+                <button class="control-button sync-button" onclick="showSyncModal()">
+                    <span data-lang="sync_button">Sincronizar</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Both Mode Screen -->
+        <div id="bothMode" class="screen">
+            <div class="both-mode-container">
+                <div class="caller-controls">
+                    <button class="next-button" onclick="callNextProblem()">
+                        <span data-lang="next_button">Siguiente >></span>
+                    </button>
+                    <div class="problem-display" id="bothProblemDisplay">-</div>
+                    <div class="navigation-arrows">
+                        <button class="nav-arrow" onclick="navigateProblem(-1)" id="bothPrevButton">&lt;</button>
+                        <button class="nav-arrow" onclick="navigateProblem(1)" id="bothNextButton">&gt;</button>
+                    </div>
+                    <div class="multiplication-counter">
+                        <span data-lang="multiplication_label">Multiplication:</span> 
+                        <span id="bothProblemCounter">0/0</span>
+                    </div>
+                    <button class="locutor-button" onclick="switchToCallerView()">
+                        <span data-lang="caller_view_button">Locutor</span>
+                    </button>
+                </div>
+
+                <div class="scorecard-container">
+                    <div class="scorecard" id="bothScorecard">
+                        <!-- Scorecard will be generated dynamically -->
+                    </div>
+                    <div class="scorecard-number">
+                        <span data-lang="scorecard_label">Cartón</span> #<span id="bothScorecardNumber"></span>
+                    </div>
+                </div>
+
+                <div class="answer-section">
+                    <input type="number" class="answer-input" id="bothAnswerInput" 
+                        placeholder="Ingresa respuesta" 
+                        data-lang-placeholder="answer_placeholder"
+                        oninput="checkAnswerBoth()">
+                    <div class="multiplication-options" id="bothMultiplicationOptions"></div>
+                </div>
+
+                <div class="player-controls">
+                    <button class="control-button" onclick="undo()" id="bothUndoButton">⟲</button>
+                    <button class="control-button" onclick="redo()" id="bothRedoButton">⟳</button>
+                    <button class="control-button sync-button" onclick="showSyncModal()">
+                        <span data-lang="sync_button">Sincronizar</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="instructionsModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('instructionsModal')">×</button>
+            <h2 data-lang="instructions_title">Instrucciones</h2>
+            <div data-lang="instructions_content">
+                <p>Mateloto es un juego similar al bingo, pero usando resultados de la tabla de multiplicar.</p>
+                <p>Como jugador, tienes un cartón de 5×5 con 24 números y un espacio libre en el centro.</p>
+                <p>El locutor llama problemas de multiplicación y tú marcas el resultado si está en tu cartón.</p>
+                <p>Ganas con 5 en línea (vertical, horizontal o diagonal), las 4 esquinas, o cartón completo.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="aboutModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('aboutModal')">×</button>
+            <h2 data-lang="about_title">Sobre Mateloto</h2>
+            <div data-lang="about_content">
+                <p>Mateloto fue inventado y patentado por Willy Gerardo Murillo Rivas en Costa Rica durante los años 80.</p>
+                <p>Se vendía en escuelas costarricenses para ayudar a los niños a aprender las tablas de multiplicar mientras jugaban.</p>
+                <p>Esta versión digital mantiene el espíritu educativo del juego original.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="syncModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('syncModal')">×</button>
+            <h2 data-lang="sync_title">Sincronizar con Locutor</h2>
+            <p data-lang="sync_instructions">Escanea el código QR del locutor para sincronizar los números llamados:</p>
+            <div id="qrcode"></div>
+            <p data-lang="sync_or">O ingresa el código manualmente:</p>
+            <input type="text" class="validate-input" id="syncCodeInput" placeholder="Código de sincronización">
+            <button class="validate-button" onclick="syncWithCode()">
+                <span data-lang="sync_apply">Aplicar</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Win Message -->
+    <div class="win-message" id="winMessage">
+        <span data-lang="win_message">¡GANASTE!</span>
+    </div>
+
+    <script>
+        // Language definitions
+		// LM: Reviewed 2025-07-25 1659 Nashville, TN
+        const languages = {
+            es: {
+                menu_reset: "Reiniciar",
+                menu_instructions: "Instrucciones",
+                menu_language: "Language",
+                menu_about: "Sobre...",
+                mode_caller: "Locutor",
+                mode_caller_desc: "(llama problemas)",
+                mode_player: "Jugador",
+                mode_player_desc: "(marca resultados)",
+                mode_both: "Ambos",
+                mode_both_desc: "(llama y marca)",
+                next_button: "Siguiente >>",
+                multiplication_label: "Multiplicación:",
+                validate_button: "Validar Cartón",
+                scorecard_label: "Cartón",
+                answer_placeholder: "Ingresa respuesta",
+                sync_button: "Sincronizar",
+                caller_view_button: "Locutor",
+                instructions_title: "Instrucciones",
+                instructions_content: `
+                    <p>Mateloto es un juego similar al bingo, pero usando resultados de la tabla de multiplicar.</p>
+                    <p>Como jugador, tienes un cartón de 5×5 con 24 números y un espacio marcado en el centro.</p>
+                    <p>El locutor llama multiplicaciones y tú marcas el resultado para cada una si está en tu cartón.</p>
+                    <p>Ganas con 5 en línea (vertical, horizontal o diagonal), las 4 esquinas, o cartón completo.</p>
+                `,
+                about_title: "Sobre Mateloto",
+                about_content: `
+                    <p>Mateloto fue inventado y patentado por Willy Gerardo Murillo Rivas en Costa Rica durante los años 80.</p>
+                    <p>Se vendía en escuelas costarricenses para ayudar a los niños a aprender las tablas de multiplicar mientras jugaban.</p>
+                    <p>Esta versión digital mantiene el espíritu educativo del juego original.</p>
+                `,
+                sync_title: "Sincronizar con Locutor",
+                sync_instructions: "Escanea el código QR del locutor para sincronizar los números llamados:",
+                sync_or: "O ingresa el código manualmente:",
+                sync_apply: "Aplicar",
+                win_message: "¡GANASTE!",
+				row: "Fila",
+				column: "Columna",
+				diagonal: "Diagonal",
+				four_corners: "Cuatro Esquinas",
+				full_card: "Cartón Lleno",
+				all_called_msg: "Todos las 45 multiplicaciones han sido llamadas"
+            },
+            en: {
+                menu_reset: "Reset",
+                menu_instructions: "Instructions",
+                menu_language: "Language",
+                menu_about: "About",
+                mode_caller: "Caller",
+                mode_caller_desc: "(calls problems)",
+                mode_player: "Player",
+                mode_player_desc: "(checks answers)",
+                mode_both: "Both",
+                mode_both_desc: "(calls and checks)",
+                next_button: "Next >>",
+                multiplication_label: "Multiplication:",
+                validate_button: "Validate Card",
+                scorecard_label: "Card",
+                answer_placeholder: "Enter answer",
+                sync_button: "Synchronize",
+                caller_view_button: "Caller",
+                instructions_title: "Instructions",
+                instructions_content: `
+                    <p>Mateloto is a game similar to bingo, but using multiplication table results.</p>
+                    <p>As a player, you have a 5×5 card with 24 numbers and a free space in the center.</p>
+                    <p>The caller calls multiplications and you mark the result for each if it's on your card.</p>
+                    <p>You win with 5 in a row (vertical, horizontal or diagonal), the 4 corners, or full card.</p>
+                `,
+                about_title: "About Mateloto",
+                about_content: `
+                    <p>Mateloto was invented and patented by Willy Gerardo Murillo Rivas in Costa Rica during the 80s.</p>
+                    <p>It was sold in Costa Rican schools to help children learn multiplication tables while playing.</p>
+                    <p>This digital version maintains the educational spirit of the original game.</p>
+                `,
+                sync_title: "Sync with Caller",
+                sync_instructions: "Scan the caller's QR code to sync called numbers:",
+                sync_or: "Or enter the code manually:",
+                sync_apply: "Apply",
+                win_message: "YOU WIN!",
+				row: "Row",
+				column: "Column",
+				diagonal: "Diagonal",
+				four_corners: "Four Corners",
+				full_card: "Full Card",
+				all_called_msg: "All 45 multiplications have been called"
+            }
+        };
+
+        // Game state
+        let currentLanguage = 'es';
+        let currentMode = null;
+        let callerState = '0'.repeat(45); // 45-bit string
+        let calledProblems = [];
+        let currentProblemIndex = -1;
+        let playerScorecard = null;
+        let playerScorecardNumber = null;
+        let playerHistory = []; // see function saveHistory()
+        let playerHistoryIndex = -1;
+        let showingAnswers = true;
+
+		function createBlankWinsObject() {
+			return {
+				row:      [false, false, false, false, false],
+				column:   [false, false, false, false, false],
+				diagonal: [false, false],
+				fourCorners: false,
+				fullCard: false
+			};
+		}
+		let playerWins = {};
+
+        // Multiplication data
+        const multiplicationProblems = []; //{ a, b, result, index}
+        const resultToProblems = {}; //maps results to problems (one or two problems per result)
+        const repeatedResults = [4, 6, 8, 9, 12, 16, 18, 24, 36];
+        const singleResults = [1, 2, 3, 5, 7, 10, 14, 15, 20, 21, 25, 27, 28, 30, 32, 35, 40, 42, 45, 48, 49, 54, 56, 63, 64, 72, 81];
+		
+		const TOTAL_POSSIBLE_SCORECARDS = 393693300;  // (C(9,6) = 84)*(C(27,18) = 4,686,825)
+
+        // Initialize multiplication problems
+		// LM: Reviewed 2025-07-26 1626 Nashville, TN
+        function initializeMultiplicationData() {
+            let index = 0;
+            for (let i = 1; i <= 9; i++) {
+                for (let j = i; j <= 9; j++) {
+                    const result = i * j;
+                    multiplicationProblems.push({ a: i, b: j, result: result, index: index++ });
+                    
+                    if (!resultToProblems[result]) {
+                        resultToProblems[result] = [];
+                    }
+                    resultToProblems[result].push({ a: i, b: j });
+                }
+            }
+        }
+
+		/**
+		 * Calculates the binomial coefficient C(n, k) = n! / (k! * (n-k)!)
+		 * Also known as "n choose k" - the number of ways to choose k items from n items
+		 * 
+		 * @param {number} n - The total number of items (must be non-negative)
+		 * @param {number} k - The number of items to choose (must be non-negative)
+		 * @returns {number} The binomial coefficient, or 0 if invalid inputs
+		 */
+		function binomialCoefficient(n, k) {
+		    // LM Reviewed 2025-07-25 1722 Nashville, TN
+			
+			// Reject negative n - binomial coefficients are undefined for negative n
+			// in the standard combinatorial interpretation
+			if (n < 0) return 0;
+			
+			// Reject negative k - can't choose a negative number of items
+			// Also reject k > n - can't choose more items than available
+			if (k < 0 || k > n) return 0;
+			
+			// Base cases that always equal 1:
+			// C(n, 0) = 1 (one way to choose nothing)
+			// C(n, n) = 1 (one way to choose everything)
+			if (k === 0 || k === n) return 1;
+			
+			// Optimization: Use symmetry property C(n, k) = C(n, n-k)
+			// Always calculate with the smaller k to reduce iterations
+			// This also helps prevent overflow for larger numbers
+			if (k > n - k) {
+				k = n - k;
+			}
+			
+			// Calculate C(n, k) iteratively to avoid factorial overflow
+			// Formula: C(n, k) = (n * (n-1) * ... * (n-k+1)) / (k * (k-1) * ... * 1)
+			// We multiply and divide in each iteration to keep numbers smaller
+			let result = 1;
+			
+			for (let i = 1; i <= k; i++) {
+				// Multiply by the next term in the numerator: (n - i + 1)
+				// Divide by the next term in the denominator: i
+				// This maintains the running product while keeping numbers manageable
+				result = result * (n - i + 1) / i;
+			}
+			
+			// Floor the result to handle any floating-point precision issues
+			// Binomial coefficients are always integers, so this ensures clean output
+			return Math.floor(result);
+		}
+
+		// Test cases to verify the function works correctly
+		// LM Reviewed 2025-07-25 1729 Nashville, TN
+		function testBinomialCoefficient() {
+			console.log("=== Binomial Coefficient Tests ===");
+			
+			// Valid cases
+			console.log("Valid cases:");
+			console.log(`C(5, 0) = ${binomialCoefficient(5, 0)} (expected: 1)`);
+			console.log(`C(5, 1) = ${binomialCoefficient(5, 1)} (expected: 5)`);
+			console.log(`C(5, 2) = ${binomialCoefficient(5, 2)} (expected: 10)`);
+			console.log(`C(5, 3) = ${binomialCoefficient(5, 3)} (expected: 10)`);
+			console.log(`C(5, 4) = ${binomialCoefficient(5, 4)} (expected: 5)`);
+			console.log(`C(5, 5) = ${binomialCoefficient(5, 5)} (expected: 1)`);
+			
+			// Edge cases with negative numbers
+			console.log("\nNegative number cases:");
+			console.log(`C(-5, 0) = ${binomialCoefficient(-5, 0)} (expected: 0)`);
+			console.log(`C(-5, -5) = ${binomialCoefficient(-5, -5)} (expected: 0)`);
+			console.log(`C(5, -1) = ${binomialCoefficient(5, -1)} (expected: 0)`);
+			
+			// Invalid cases
+			console.log("\nInvalid cases:");
+			console.log(`C(3, 5) = ${binomialCoefficient(3, 5)} (expected: 0)`);
+			console.log(`C(0, 1) = ${binomialCoefficient(0, 1)} (expected: 0)`);
+			
+			// Large numbers test
+			console.log("\nLarge numbers:");
+			console.log(`C(27, 18) = ${binomialCoefficient(27, 18)} (expected: 4686825)`);
+		}
+
+		// Run tests
+		// testBinomialCoefficient();
+		/**
+		 * Unranking algorithm
+		 * GLOSSARY OF ORIGINAL VARIABLES:
+		 * 
+		 * n = totalElements        - Total number of elements available (0 to n-1)
+		 * k = combinationLength    - Length of each combination (how many elements to choose)
+		 * rank = targetRank        - The 1-based rank of the combination we want to find
+		 * r = remainingRank        - How many more combinations we need to skip (0-based, decreases)
+		 * i = currentPosition      - Which position in the result we're currently filling (0 to k-1)
+		 * j = candidateElement     - The element we're testing for the current position
+		 * c = combinationsCount    - How many combinations would have candidateElement at currentPosition
+		 * x = nextMinimumElement   - The smallest element we can use next (maintains ascending order)
+		 * result = combination     - The final combination array we're building
+		 * 
+		 * IMPORTANT: Combinations are ORDERED AS RANKED in lexicographic order:
+		 * Rank 1: {0,1,2}, Rank 2: {0,1,3}, Rank 3: {0,1,4}, Rank 4: {0,2,3}, etc.
+		 *
+ 		 * LM: Reviewed 2025-07-26 1624 Nashville, TN
+		 */
+		 
+		/**
+		 * Unranking algorithm for combinations with descriptive variable names
+		 * Converts a rank number back into the actual combination
+		 * 
+		 * @param {number} totalElements - Total number of elements (elements are 0 to totalElements-1)
+		 * @param {number} combinationLength - Number of elements to choose
+		 * @param {number} targetRank - The rank of the combination (1-based indexing in lexicographic order)
+		 * @returns {Array} The combination at the given rank
+		 */
+		function unrankCombination(totalElements, combinationLength, targetRank) {
+		    // LM: Reviewed 2025-07-26 1624 Nashville, TN
+			
+			let combination = [];                              // Will store the final combination
+			let remainingRank = targetRank - 1;               // Convert from 1-based to 0-based indexing
+			let nextMinimumElement = 0;                       // Starting position for next element to consider
+			
+			// Build the combination element by element (combinationLength iterations)
+			for (let currentPosition = 0; currentPosition < combinationLength; currentPosition++) {
+				
+				// Try each possible element starting from nextMinimumElement
+				for (let candidateElement = nextMinimumElement; candidateElement < totalElements; candidateElement++) {
+					
+					// Calculate how many combinations would have candidateElement 
+					// at currentPosition (with remaining positions filled from candidateElement+1 onwards)
+					let elementsRemaining = totalElements - candidateElement - 1;
+					let positionsRemaining = combinationLength - currentPosition - 1;
+					let combinationsCount = binomialCoefficient(elementsRemaining, positionsRemaining);
+					
+					if (remainingRank < combinationsCount) {
+						// The rank we want falls within combinations starting with candidateElement
+						// So candidateElement is the correct element for currentPosition
+						combination.push(candidateElement);
+						nextMinimumElement = candidateElement + 1;     // Next element must be > candidateElement
+						break;                                         // Move to next position
+					} else {
+						// The rank is beyond all combinations starting with candidateElement
+						// Skip over all those combinations and try next candidateElement
+						remainingRank -= combinationsCount;
+					}
+				}
+			}
+			return combination;
+		}
+		
+		/**
+		 * Demonstration with detailed tracing using meaningful names
+		 * LM: Reviewed 2025-07-26 1624 Nashville, TN
+		 */
+		function demonstrateUnranking() {
+			console.log("=== Unranking with Meaningful Variable Names ===");
+			console.log("Choosing 3 elements from 5 elements {0,1,2,3,4}");
+			console.log("Combinations are ORDERED AS RANKED in lexicographic order");
+			
+			const totalElements = 5;
+			const combinationLength = 3;
+			const targetRank = 4;
+			
+			console.log(`\nTracing targetRank=${targetRank}:`);
+			
+			let combination = [];
+			let remainingRank = targetRank - 1;
+			let nextMinimumElement = 0;
+			
+			console.log(`Initial state:`);
+			console.log(`  remainingRank = ${remainingRank} (converted to 0-based)`);
+			console.log(`  nextMinimumElement = ${nextMinimumElement}`);
+			
+			for (let currentPosition = 0; currentPosition < combinationLength; currentPosition++) {
+				console.log(`\nFilling currentPosition=${currentPosition}:`);
+				
+				for (let candidateElement = nextMinimumElement; candidateElement < totalElements; candidateElement++) {
+					let elementsRemaining = totalElements - candidateElement - 1;
+					let positionsRemaining = combinationLength - currentPosition - 1;
+					let combinationsCount = binomialCoefficient(elementsRemaining, positionsRemaining);
+					
+					console.log(`  Testing candidateElement=${candidateElement}:`);
+					console.log(`    elementsRemaining = ${totalElements} - ${candidateElement} - 1 = ${elementsRemaining}`);
+					console.log(`    positionsRemaining = ${combinationLength} - ${currentPosition} - 1 = ${positionsRemaining}`);
+					console.log(`    combinationsCount = C(${elementsRemaining}, ${positionsRemaining}) = ${combinationsCount}`);
+					
+					if (remainingRank < combinationsCount) {
+						console.log(`    remainingRank(${remainingRank}) < combinationsCount(${combinationsCount})`);
+						console.log(`    → Choose candidateElement=${candidateElement}`);
+						combination.push(candidateElement);
+						nextMinimumElement = candidateElement + 1;
+						console.log(`    → combination = [${combination.join(',')}]`);
+						console.log(`    → nextMinimumElement = ${nextMinimumElement}`);
+						break;
+					} else {
+						console.log(`    remainingRank(${remainingRank}) >= combinationsCount(${combinationsCount})`);
+						console.log(`    → Skip ${combinationsCount} combinations`);
+						remainingRank -= combinationsCount;
+						console.log(`    → remainingRank = ${remainingRank}`);
+					}
+				}
+			}
+			
+			console.log(`\nFinal combination: [${combination.join(',')}]`);
+			
+			// Verify with original function
+			const originalResult = unrankCombination(totalElements, combinationLength, targetRank);
+			console.log(`Verification: [${originalResult.join(',')}]`);
+			
+			traceUnranking(27, 18, 2123456)
+		}
+
+		/**
+		 * Traces through the unranking algorithm step by step
+		 * LM: Reviewed 2025-07-26 1624 Nashville, TN
+		 */
+		function traceUnranking(n, k, rank) {
+			console.log(`Finding combination for n=${n}, k=${k}, rank=${rank}`);
+			
+			let result = [];
+			let r = rank - 1;
+			let x = 0;
+			
+			console.log(`Initial: r=${r} (0-based), x=${x}`);
+			
+			for (let i = 0; i < k; i++) {
+				console.log(`\nPosition ${i}:`);
+				
+				for (let j = x; j < n; j++) {
+					let c = binomialCoefficient(n - j - 1, k - i - 1);
+					console.log(`  Try j=${j}: C(${n-j-1}, ${k-i-1}) = ${c}`);
+					
+					if (r < c) {
+						console.log(`  r=${r} < ${c}, so choose j=${j}`);
+						result.push(j);
+						x = j + 1;
+						console.log(`  Result so far: [${result.join(',')}], next x=${x}`);
+						break;
+					} else {
+						console.log(`  r=${r} >= ${c}, skip ${c} combinations`);
+						r -= c;
+						console.log(`  New r=${r}`);
+					}
+				}
+			}
+			
+			console.log(`\nFinal result: [${result.join(',')}]`);
+			return result;
+		}
+
+		// Run the Unranking demonstration
+		// demonstrateUnranking();
+
+        // Generate scorecard
+		// LM: Reviewed 2025-07-25 1642 Nashville, TN
+        function generateScorecard(cardNumber) {
+            const repeatedCount = binomialCoefficient(9, 6); // 84
+            const singleCount = binomialCoefficient(27, 18); // 4686825
+            
+            const repeatedRank = (cardNumber % repeatedCount) + 1;
+            const singleRank = Math.floor(cardNumber / repeatedCount) + 1;
+            
+            const selectedRepeated = unrankCombination(9, 6, repeatedRank);
+            const selectedSingle = unrankCombination(27, 18, singleRank);
+            
+            const scorecardResults = [];
+            selectedRepeated.forEach(i => scorecardResults.push(repeatedResults[i]));
+            selectedSingle.forEach(i => scorecardResults.push(singleResults[i]));
+            
+            // Sort the results in ascending order
+            scorecardResults.sort((a, b) => a - b);
+            
+            // Create 5x5 grid with center free, filling by columns
+            const grid = [];
+            for (let i = 0; i < 5; i++) {
+                grid.push(new Array(5));
+            }
+            
+            // Set the center as free
+            grid[2][2] = { value: 'FREE', chipped: true };
+            
+            // Fill by columns (column by column, top to bottom)
+            let resultIndex = 0;
+            
+            // First two columns (5 numbers each)
+            for (let col = 0; col < 2; col++) {
+                for (let row = 0; row < 5; row++) {
+                    grid[row][col] = { value: scorecardResults[resultIndex++], chipped: false };
+                }
+            }
+            
+            // Third column (4 numbers, skip center)
+            for (let row = 0; row < 5; row++) {
+                if (row !== 2) {
+                    grid[row][2] = { value: scorecardResults[resultIndex++], chipped: false };
+                }
+            }
+            
+            // Last two columns (5 numbers each)
+            for (let col = 3; col < 5; col++) {
+                for (let row = 0; row < 5; row++) {
+                    grid[row][col] = { value: scorecardResults[resultIndex++], chipped: false };
+                }
+            }
+            
+            return grid;
+        }
+
+        // Create scorecard UI
+		// LM: Reviewed 2025-07-26 1632 Nashville, TN
+        function createScorecardUI(containerId, scorecard, isPlayerMode = true) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            // Headers
+            const headers = ['M', 'U', 'L', 'T', 'I'];
+            headers.forEach(header => {
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'scorecard-header';
+                headerDiv.textContent = header;
+                container.appendChild(headerDiv);
+            });
+            
+            // Cells
+            for (let i = 0; i < 5; i++) {
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'scorecard-cell';
+                    
+                    if (scorecard[i][j].value === 'FREE') {
+                        cell.className += ' free';
+                        cell.innerHTML = '❤️';
+                    } else {
+                        cell.textContent = scorecard[i][j].value;
+                        if (scorecard[i][j].chipped) {
+                            cell.className += ' chipped';
+                        }
+                        if (isPlayerMode) {
+                            cell.onclick = () => toggleCell(i, j);
+                        }
+                    }
+                    
+                    cell.id = `cell-${i}-${j}`;
+                    container.appendChild(cell);
+                }
+            }
+        }
+
+        // Toggle cell
+        function toggleCell(row, col) {
+            if (playerScorecard[row][col].value === 'FREE') return;
+            
+            playerScorecard[row][col].chipped = !playerScorecard[row][col].chipped;
+            updateScorecardUI(true);
+            checkWin();
+        }
+
+        // Update scorecard UI
+        function updateScorecardUI(savingHistory) {
+            const prefix = currentMode === 'both' ? 'both' : 'player';
+            for (let i = 0; i < 5; i++) {
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.querySelector(`#${prefix}Scorecard #cell-${i}-${j}`);
+                    if (cell && playerScorecard[i][j].value !== 'FREE') {
+                        if (playerScorecard[i][j].chipped) {
+                            cell.classList.add('chipped');
+                        } else {
+                            cell.classList.remove('chipped');
+                        }
+                    }
+                }
+            }
+			if (savingHistory) {
+				saveHistory();
+			}
+			else
+			{
+				updateUndoRedoButtons();   // (enabled/disabled state)
+			}
+        }
+
+        // Check answer
+        function checkAnswer() {
+            const input = document.getElementById('answerInput');
+            const value = parseInt(input.value);
+            const optionsContainer = document.getElementById('multiplicationOptions');
+            
+            optionsContainer.innerHTML = '';
+            
+            if (value && resultToProblems[value]) {
+                resultToProblems[value].forEach(problem => {
+                    const button = document.createElement('button');
+                    button.className = 'mult-option';
+                    button.textContent = `${problem.a} × ${problem.b}`;
+                    button.onclick = () => markNumberOnScorecard(value);
+                    optionsContainer.appendChild(button);
+                });
+            }
+        }
+
+        function checkAnswerBoth() {
+            const input = document.getElementById('bothAnswerInput');
+            const value = parseInt(input.value);
+            const optionsContainer = document.getElementById('bothMultiplicationOptions');
+            
+            optionsContainer.innerHTML = '';
+            
+            if (value && resultToProblems[value]) {
+                resultToProblems[value].forEach(problem => {
+                    const button = document.createElement('button');
+                    button.className = 'mult-option';
+                    button.textContent = `${problem.a} × ${problem.b}`;
+                    button.onclick = () => markNumberOnScorecard(value);
+                    optionsContainer.appendChild(button);
+                });
+            }
+        }
+
+        // Mark number on scorecard
+        function markNumberOnScorecard(number) {
+            let marked = false;
+			let chipped = false;
+			
+            for (let i = 0; i < 5; i++) {
+                for (let j = 0; j < 5; j++) {
+                    if (playerScorecard[i][j].value === number) {
+                        playerScorecard[i][j].chipped = !playerScorecard[i][j].chipped;
+						//chipped = playerScorecard[i][j].chipped;
+                        marked = true;
+						break; // there shall be at most one number.
+                    }
+                }
+            }
+            
+            if (marked) {
+                updateScorecardUI(true);
+                checkWin();
+            }
+        }
+
+        // History management: implements an undo/redo system for the player's scorecard.
+		// Saves the current state of the scorecard before any changes are made, enabling undo/redo.
+		// LM Reviewed 2025-07-26 1712 Nashville, TN
+        function saveHistory() {
+            const state = JSON.parse(JSON.stringify(playerScorecard));
+			
+			// Handle "Branch" Scenario
+			// It handles when user does: Action → Undo+ → Redo* → New Action
+            if (playerHistoryIndex < playerHistory.length - 1) {
+			    // If you're not at the latest state (you've undone some actions),
+				// it discards the "future" history
+                playerHistory = playerHistory.slice(0, playerHistoryIndex + 1);
+            }
+            playerHistory.push(state); // Add New State to History
+            playerHistoryIndex++;      // Update Current Position
+            
+			updateUndoRedoButtons();   // (enabled/disabled state)
+        }
+
+        function undo() {
+            if (playerHistoryIndex > 0) {
+                playerHistoryIndex--;
+				playerScorecard = JSON.parse(JSON.stringify(playerHistory[playerHistoryIndex]));
+                updateScorecardUI(false);
+            }
+        }
+
+        function redo() {
+            if (playerHistoryIndex < playerHistory.length - 1) {
+				playerHistoryIndex++;
+                playerScorecard = JSON.parse(JSON.stringify(playerHistory[playerHistoryIndex]));
+                updateScorecardUI(false);
+            }
+        }
+
+        function updateUndoRedoButtons() {
+            const undoButtons = ['undoButton', 'bothUndoButton'];
+            const redoButtons = ['redoButton', 'bothRedoButton'];
+            
+            undoButtons.forEach(id => {
+                const button = document.getElementById(id);
+                if (button) {
+                    button.disabled = playerHistoryIndex <= 0;
+                }
+            });
+            
+            redoButtons.forEach(id => {
+                const button = document.getElementById(id);
+                if (button) {
+                    button.disabled = playerHistoryIndex >= (playerHistory.length - 1);
+                }
+            });
+        }
+
+        // Win checking
+        function checkWin() {
+			// let oldPlayerWins = playerWins;
+			// playerWins = createBlankWinsObject(); if we wanted to compare states at the end
+			// Instead, we will use change-data-capture on isWin
+			let isWin = false;
+
+            // Check rows
+            for (let i = 0; i < 5; i++) {
+				let rowWin = playerScorecard[i].every(cell => cell.chipped);
+                if (rowWin) {
+                    if(!playerWins.row[i]) isWin = true;
+                }
+				playerWins.row[i] = rowWin;
+            }
+            
+            // Check columns
+			for (let j = 0; j < 5; j++) {
+				let columnWin = true;
+				for (let i = 0; i < 5; i++) {
+					if (!playerScorecard[i][j].chipped) {
+						columnWin = false;
+						break;
+					}
+				}
+				if (columnWin) {
+					if(!playerWins.column[j]) isWin = true;
+				}
+				playerWins.column[j] = columnWin;
+			}
+            
+            // Check diagonals
+			let diagonal1 = true;
+			let diagonal2 = true;
+			for (let i = 0; i < 5; i++) {
+				if (!playerScorecard[i][i].chipped) diagonal1 = false;
+				if (!playerScorecard[i][4-i].chipped) diagonal2 = false;
+			}
+			if (diagonal1) {
+				if(!playerWins.diagonal[0]) isWin = true;
+			}
+			playerWins.diagonal[0] = diagonal1;
+			if (diagonal2) {
+				if(!playerWins.diagonal[1]) isWin = true;
+			}
+			playerWins.diagonal[1] = diagonal2;
+            
+            // Check four corners
+			let fourCorners = playerScorecard[0][0].chipped && 
+							  playerScorecard[0][4].chipped && 
+							  playerScorecard[4][0].chipped && 
+							  playerScorecard[4][4].chipped;
+			if (fourCorners)
+			{
+				if(!playerWins.fourCorners) isWin = true;
+            }
+			playerWins.fourCorners = fourCorners;
+            
+            // Check full card
+			let fullCard = true;
+			for (let i = 0; i < 5; i++) {
+				for (let j = 0; j < 5; j++) {
+					if (!playerScorecard[i][j].chipped) {
+						fullCard = false;
+						break;
+					}
+				}
+				if (!fullCard) break;
+			}
+			if (fullCard) {
+				if(!playerWins.fullCard) isWin = true;
+			}
+			playerWins.fullCard = fullCard;
+            
+            if (isWin) {
+                showWinMessage();
+            }
+        }
+
+        function showWinMessage() {
+            const winMessage = document.getElementById('winMessage');
+            winMessage.classList.add('show');
+            
+            const prefix = currentMode === 'both' ? 'both' : 'player';
+            const scorecard = document.getElementById(prefix + 'Scorecard');
+            scorecard.classList.add('win-animation');
+			
+			// Build list of achieved wins with redundancy avoidance
+			const wins = [];
+			const columnLetters = ['M', 'U', 'L', 'T', 'I'];
+
+			// Check for full card first - if present, only show that
+			if (playerWins.fullCard) {
+				wins.push(languages[currentLanguage].full_card);
+			} else {
+				// Check rows
+				playerWins.row.forEach((won, index) => {
+					if (won) {
+						wins.push(`${languages[currentLanguage].row} ${index + 1}`);
+					}
+				});
+
+				// Check columns with MULTI letters
+				playerWins.column.forEach((won, index) => {
+					if (won) {
+						wins.push(`${languages[currentLanguage].column} ${columnLetters[index]}`);
+					}
+				});
+
+				// Check diagonals
+				let diagonalCount = 0;
+				if (playerWins.diagonal[0]) {
+					wins.push(`${languages[currentLanguage].diagonal} ↘`);
+					diagonalCount++;
+				}
+				if (playerWins.diagonal[1]) {
+					wins.push(`${languages[currentLanguage].diagonal} ↙`);
+					diagonalCount++;
+				}
+
+				// Check four corners only if we don't have both diagonals
+				if (playerWins.fourCorners && diagonalCount < 2) {
+					wins.push(languages[currentLanguage].four_corners);
+				}
+			}
+
+			// Update win message with specific wins
+			if (wins.length > 0) {
+				const winText = wins.join(', ');
+				winMessage.innerHTML = `<div>${languages[currentLanguage].win_message}</div><div style="font-size: 1rem; margin-top: 0.5rem;">${winText}</div>`;
+			}
+			
+			// Disable scorecard chipping while animating
+			scorecard.style.pointerEvents = 'none';
+			
+            setTimeout(() => {
+                winMessage.classList.remove('show');
+                scorecard.classList.remove('win-animation');
+				
+				// Re-enable scorecard chipping after animating
+				scorecard.style.pointerEvents = 'auto';
+            }, 3000);
+        }
+
+        // Caller functions
+        function callNextProblem() {
+            const availableProblems = [];
+            for (let i = 0; i < 45; i++) {
+                if (callerState[i] === '0') {
+                    availableProblems.push(i);
+                }
+            }
+            
+            if (availableProblems.length === 0) {
+			    //todo show message stating all 45 problems have been called (all_called_msg)
+				return;
+			}
+            
+            const randomIndex = availableProblems[Math.floor(Math.random() * availableProblems.length)];
+            const problem = multiplicationProblems[randomIndex];
+            
+            callerState = callerState.substring(0, randomIndex) + '1' + callerState.substring(randomIndex + 1);
+            calledProblems.push(problem);
+            currentProblemIndex = calledProblems.length - 1;
+            
+            updateCallerDisplay();
+            updateNavigationButtons();
+            updateTriangularGrid();
+        }
+
+        function navigateProblem(direction) {
+            currentProblemIndex += direction;
+            updateCallerDisplay();
+            updateNavigationButtons();
+        }
+
+        function updateCallerDisplay() {
+            const displayIds = currentMode === 'both' ? 
+                ['bothProblemDisplay', 'bothProblemCounter'] : 
+                ['problemDisplay', 'problemCounter'];
+            
+            const problemDisplay = document.getElementById(displayIds[0]);
+            const counterDisplay = document.getElementById(displayIds[1]);
+            
+            if (currentProblemIndex >= 0 && currentProblemIndex < calledProblems.length) {
+                const problem = calledProblems[currentProblemIndex];
+                const showReverse = Math.random() < 0.5 && problem.a !== problem.b;
+                problemDisplay.textContent = showReverse ? 
+                    `${problem.b} × ${problem.a}` : 
+                    `${problem.a} × ${problem.b}`;
+            } else {
+                problemDisplay.textContent = '-';
+            }
+            
+            counterDisplay.textContent = `${currentProblemIndex + 1}/${calledProblems.length}`;
+        }
+
+        function updateNavigationButtons() {
+            const prevIds = currentMode === 'both' ? ['bothPrevButton'] : ['prevButton'];
+            const nextIds = currentMode === 'both' ? ['bothNextButton'] : ['nextButton'];
+            
+            prevIds.forEach(id => {
+                const button = document.getElementById(id);
+                if (button) {
+                    button.disabled = currentProblemIndex <= 0;
+                }
+            });
+            
+            nextIds.forEach(id => {
+                const button = document.getElementById(id);
+                if (button) {
+                    button.disabled = currentProblemIndex >= calledProblems.length - 1;
+                }
+            });
+        }
+
+        // Triangular grid
+        function createTriangularGrid() {
+            const grid = document.getElementById('triangularGrid');
+            grid.innerHTML = '';
+            
+            let cellIndex = 44;
+            for (let row = 1; row <= 9; row++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'grid-row';
+                
+                for (let col = 0; col < row; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-cell';
+                    cell.id = `grid-cell-${(cellIndex-row+1+2*col)}`;
+                    
+                    const problem = multiplicationProblems[cellIndex-row+1+2*col];
+                    cell.textContent = showingAnswers ? problem.result : `${problem.a}×${problem.b}`;
+                    
+                    if (callerState[cellIndex-row+1+2*col] === '1') {
+                        cell.classList.add('called');
+                    }
+                    
+                    rowDiv.appendChild(cell);
+                    cellIndex--;
+                }
+                
+                grid.appendChild(rowDiv);
+            }
+        }
+
+        function updateTriangularGrid() {
+            for (let i = 0; i < 45; i++) {
+                const cell = document.getElementById(`grid-cell-${i}`);
+                if (cell) {
+                    if (callerState[i] === '1') {
+                        cell.classList.add('called');
+                    } else {
+                        cell.classList.remove('called');
+                    }
+                }
+            }
+        }
+
+        function toggleGridDisplay() {
+            showingAnswers = !showingAnswers;
+            document.getElementById('gridToggle').textContent = showingAnswers ? 'R/' : 'a × b';
+            createTriangularGrid();
+        }
+
+        // Validation
+        function validateScorecard() {
+            const input = document.getElementById('validateInput');
+            const cardNumber = parseInt(input.value);
+            
+            if (isNaN(cardNumber) || cardNumber < 1 || cardNumber > TOTAL_POSSIBLE_SCORECARDS) {
+                alert('Número de cartón inválido');
+                return;
+            }
+            
+            const scorecard = generateScorecard(cardNumber - 1);
+            let hasWin = false;
+            
+            // Check all called numbers against the scorecard
+            calledProblems.forEach(problem => {
+                for (let i = 0; i < 5; i++) {
+                    for (let j = 0; j < 5; j++) {
+                        if (scorecard[i][j].value === problem.result) {
+                            scorecard[i][j].chipped = true;
+                        }
+                    }
+                }
+            });
+            
+            // Quick win check (simplified for validation)
+            // This would need the full win checking logic
+            
+            alert(hasWin ? '¡Cartón ganador!' : 'Este cartón no ha ganado aún');
+        }
+
+        // Sync functions
+        function showSyncModal() {
+            document.getElementById('syncModal').classList.add('active');
+            generateQRCode();
+        }
+
+        function generateQRCode() {
+            const qrcodeDiv = document.getElementById('qrcode');
+            qrcodeDiv.innerHTML = '';
+            
+            // Convert caller state to a more compact format for QR
+            const syncData = {
+                state: callerState,
+                timestamp: Date.now()
+            };
+            
+            new QRCode(qrcodeDiv, {
+                text: JSON.stringify(syncData),
+                width: 200,
+                height: 200
+            });
+        }
+
+        function syncWithCode() {
+            const input = document.getElementById('syncCodeInput');
+            try {
+                const syncData = JSON.parse(input.value);
+                if (syncData.state && syncData.state.length === 45) {
+                    // Apply the sync
+                    callerState = syncData.state;
+                    
+                    // Mark all called numbers on the scorecard
+                    for (let i = 0; i < 45; i++) {
+                        if (callerState[i] === '1') {
+                            const problem = multiplicationProblems[i];
+                            for (let row = 0; row < 5; row++) {
+                                for (let col = 0; col < 5; col++) {
+                                    if (playerScorecard[row][col].value === problem.result) {
+                                        playerScorecard[row][col].chipped = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    updateScorecardUI(true);
+                    checkWin();
+                    closeModal('syncModal');
+                    alert('Sincronización completada');
+                }
+            } catch (e) {
+                alert('Código de sincronización inválido');
+            }
+        }
+
+        // Mode switching
+        function startCallerMode() {
+            currentMode = 'caller';
+            showScreen('callerMode');
+            createTriangularGrid();
+            updateNavigationButtons();
+        }
+
+        function startPlayerMode() {
+            currentMode = 'player';
+            showScreen('playerMode');
+            initializePlayerMode();
+        }
+
+        function startBothMode() {
+            currentMode = 'both';
+            showScreen('bothMode');
+            initializePlayerMode();
+            updateNavigationButtons();
+        }
+
+        function initializePlayerMode() {
+            playerScorecardNumber = Math.floor(Math.random() * TOTAL_POSSIBLE_SCORECARDS) + 1;
+            playerScorecard = generateScorecard(playerScorecardNumber - 1);
+            
+            const numberSpan = document.getElementById(currentMode === 'both' ? 'bothScorecardNumber' : 'scorecardNumber');
+            numberSpan.textContent = playerScorecardNumber;
+            
+            createScorecardUI(currentMode === 'both' ? 'bothScorecard' : 'playerScorecard', playerScorecard);
+            
+			// init Player History
+			playerHistoryIndex = -1;
+			saveHistory(); // saves the empty scorecard as initial state
+			
+			// init Player Wins
+			playerWins = createBlankWinsObject();
+        }
+
+        function switchToCallerView() {
+            startCallerMode();
+        }
+
+        // UI utilities
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function toggleMenu() {
+            const menu = document.querySelector('.menu');
+            const backdrop = document.querySelector('.menu-backdrop');
+            menu.classList.toggle('open');
+            backdrop.classList.toggle('open');
+        }
+
+        function resetGame() {
+            currentMode = null;
+            callerState = '0'.repeat(45);
+            calledProblems = [];
+            currentProblemIndex = -1;
+            playerScorecard = null;
+            playerScorecardNumber = null;
+            playerHistory = [];
+            playerHistoryIndex = -1;
+            showScreen('modeSelection');
+            toggleMenu();
+        }
+
+        function showInstructions() {
+            document.getElementById('instructionsModal').classList.add('active');
+            toggleMenu();
+        }
+
+        function showAbout() {
+            document.getElementById('aboutModal').classList.add('active');
+            toggleMenu();
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function toggleLanguage() {
+            currentLanguage = currentLanguage === 'es' ? 'en' : 'es';
+            updateLanguage();
+            toggleMenu();
+        }
+
+        function updateLanguage() {
+            document.querySelectorAll('[data-lang]').forEach(element => {
+                const key = element.getAttribute('data-lang');
+                if (languages[currentLanguage][key]) {
+                    if (element.hasAttribute('data-lang-placeholder')) {
+                        element.placeholder = languages[currentLanguage][key];
+                    } else {
+                        element.innerHTML = languages[currentLanguage][key];
+                    }
+                }
+				//else default language
+            });
+        }
+
+        // Keyboard support
+        document.addEventListener('keydown', (e) => {
+            if (currentMode === 'caller' || currentMode === 'both') {
+                if (e.key === 'ArrowLeft') {
+                    navigateProblem(-1);
+                } else if (e.key === 'ArrowRight') {
+                    navigateProblem(1);
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                    callNextProblem();
+                }
+            }
+            
+            if (currentMode === 'player' || currentMode === 'both') {
+                if (e.ctrlKey && e.key === 'z') {
+                    undo();
+                } else if (e.ctrlKey && e.key === 'y') {
+                    redo();
+                }
+            }
+        });
+
+        // Initialize
+        initializeMultiplicationData();
+        updateLanguage();
+    </script>
+</body>
+</html>

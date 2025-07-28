@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mateloto</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -169,11 +170,15 @@
         }
 
         .navigation-arrows {
-            display: flex;
-            justify-content: center;
-            gap: 1rem;
-            margin: 1rem 0;
+			text-align: center;
+			margin: 1rem 0;
         }
+
+		.navigation-arrows button {
+			display: inline-block;
+			margin: 0 0.5rem;
+			vertical-align: middle;
+		}
 
         .nav-arrow {
             background-color: #34495e;
@@ -183,7 +188,15 @@
             font-size: 1.2rem;
             cursor: pointer;
             border-radius: 4px;
+			min-width: 50px;
+			display: inline-block;
+			vertical-align: middle;
         }
+		
+		.navigation-arrows .sync-button {
+			display: inline-block;
+			vertical-align: middle;
+		}
 
         .nav-arrow:hover:not(:disabled) {
             background-color: #2c3e50;
@@ -193,7 +206,16 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+		
+		.show-sync-button {
+			margin: 0.5rem auto;
+			display: block;
+		}
 
+		.caller-controls .sync-button {
+			margin-top: 0.5rem;
+		}
+		
         .multiplication-counter {
             font-size: 1.1rem;
             margin: 1rem 0;
@@ -209,10 +231,11 @@
             background-color: #3498db;
             color: white;
             border: none;
-            padding: 0.5rem 1rem;
+            padding: 0.5rem 0.5rem;
             margin-bottom: 1rem;
             cursor: pointer;
             border-radius: 4px;
+			min-width: 60px;
         }
 
         .triangular-grid {
@@ -245,7 +268,14 @@
             color: white;
             font-weight: bold;
         }
-
+		
+		/* for problems with same result called (yellow) */
+		.grid-cell.result-called {
+			background-color: #f1c40f;
+			color: #333;
+			font-weight: bold;
+		}
+		
         .validate-section {
             margin-top: 2rem;
             text-align: center;
@@ -401,6 +431,12 @@
 
         .sync-button {
             background-color: #9b59b6;
+			color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
         }
 
         .sync-button:hover {
@@ -481,6 +517,72 @@
             margin: 1rem 0;
         }
 
+		#syncCodeOutput[readonly] {
+			background-color: #f5f5f5;
+			font-weight: bold;
+			color: #2c3e50;
+		}
+		
+		/* Camera preview styles */
+		#cameraPreview {
+			margin: 1rem 0;
+			text-align: center;
+		}
+
+		#qrVideo {
+			border: 2px solid #ddd;
+			border-radius: 8px;
+		}
+
+		/* Caller sync code display */
+		#callerSyncCodeDisplay {
+			background-color: #f5f5f5;
+			font-weight: bold;
+			color: #2c3e50;
+			font-family: monospace, Consolas, "Courier New";
+			font-size: 1.2rem;
+			letter-spacing: 0.1em;
+			text-align: center;
+			margin-top: 1rem;
+		}
+
+		/* QR code container for caller */
+		#callerQrcode {
+			display: flex;
+			justify-content: center;
+			margin: 1rem 0;
+		}
+		
+		/* Validation Modal Styles */
+		.validation-result {
+			margin-top: 1.5rem;
+			padding: 1rem;
+			border-radius: 8px;
+			text-align: center;
+			font-size: 1.1rem;
+		}
+
+		.validation-result.winner {
+			background-color: #d4edda;
+			color: #155724;
+			border: 2px solid #c3e6cb;
+		}
+
+		.validation-result.no-winner {
+			background-color: #f8d7da;
+			color: #721c24;
+			border: 2px solid #f5c6cb;
+		}
+
+		#validationScorecard {
+			pointer-events: none; /* Disable clicking on validation scorecard */
+		}
+
+		/* Add a visual indicator for validation scorecard */
+		#validationModal .scorecard {
+			opacity: 0.9;
+		}
+
         /* Responsive Design */
         @media (max-width: 600px) {
             .scorecard {
@@ -535,6 +637,22 @@
         .win-message.show {
             display: block;
         }
+		
+		/* Copyright styles */
+		.copyright {
+			text-align: center;
+			margin-top: 2rem;
+			padding: 1rem;
+			color: #666;
+			font-size: 0.9rem;
+			border-top: 1px solid #ddd;
+		}
+
+		.copyright-small {
+			font-size: 0.8rem;
+			margin-top: 0.5rem;
+			color: #999;
+		}
     </style>
 </head>
 <body>
@@ -589,8 +707,11 @@
                 </button>
                 <div class="problem-display" id="problemDisplay">-</div>
                 <div class="navigation-arrows">
-                    <button class="nav-arrow" onclick="navigateProblem(-1)" id="prevButton">&lt;</button>
+                    <button class="sync-button show-sync-button" onclick="showSyncModalFromCaller()">						<span data-lang="show_sync_from_caller_button">Abrir Sincro</span>
+					</button>
+					<button class="nav-arrow" onclick="navigateProblem(-1)" id="prevButton">&lt;</button>
                     <button class="nav-arrow" onclick="navigateProblem(1)" id="nextButton">&gt;</button>
+					<button class="grid-toggle" onclick="toggleGridDisplay()" id="gridToggle">a × b</button>
                 </div>
                 <div class="multiplication-counter">
                     <span data-lang="multiplication_label">Multiplication:</span> 
@@ -599,15 +720,15 @@
             </div>
 
             <div class="grid-container">
-                <button class="grid-toggle" onclick="toggleGridDisplay()" id="gridToggle">R/</button>
                 <div class="triangular-grid" id="triangularGrid"></div>
             </div>
 
             <div class="validate-section">
-                <button class="validate-button" onclick="validateScorecard()">
+                <input type="text" class="validate-input" id="validateInput" placeholder="Código del cartón"
+				       data-lang-placeholder="scorecard_code_placeholder" maxlength="6">
+				<button class="validate-button" onclick="validateScorecard()">
                     <span data-lang="validate_button">Validar Cartón</span>
                 </button>
-                <input type="text" class="validate-input" id="validateInput" placeholder="ID del cartón">
             </div>
         </div>
 
@@ -633,7 +754,7 @@
             <div class="player-controls">
                 <button class="control-button" onclick="undo()" id="undoButton">⟲</button>
                 <button class="control-button" onclick="redo()" id="redoButton">⟳</button>
-                <button class="control-button sync-button" onclick="showSyncModal()">
+                <button class="control-button sync-button" onclick="showSyncModalToPlayer()">
                     <span data-lang="sync_button">Sincronizar</span>
                 </button>
             </div>
@@ -650,6 +771,9 @@
                     <div class="navigation-arrows">
                         <button class="nav-arrow" onclick="navigateProblem(-1)" id="bothPrevButton">&lt;</button>
                         <button class="nav-arrow" onclick="navigateProblem(1)" id="bothNextButton">&gt;</button>
+						<button class="sync-button show-sync-button" onclick="showSyncModalFromCaller()">
+							<span data-lang="show_sync_from_caller_button">Abrir Sincro</span>
+						</button>
                     </div>
                     <div class="multiplication-counter">
                         <span data-lang="multiplication_label">Multiplication:</span> 
@@ -680,12 +804,16 @@
                 <div class="player-controls">
                     <button class="control-button" onclick="undo()" id="bothUndoButton">⟲</button>
                     <button class="control-button" onclick="redo()" id="bothRedoButton">⟳</button>
-                    <button class="control-button sync-button" onclick="showSyncModal()">
+                    <button class="control-button sync-button" onclick="showSyncModalToPlayer()">
                         <span data-lang="sync_button">Sincronizar</span>
                     </button>
                 </div>
             </div>
         </div>
+		<div class="copyright">
+			<p>© 2025 Leonardo Murillo, Xplorandia. All rights reserved.</p>
+			<p class="copyright-small">Based on Mateloto, invented by Willy Murillo Rivas, the author's father</p>
+		</div>
     </div>
 
     <!-- Modals -->
@@ -714,20 +842,53 @@
         </div>
     </div>
 
-    <div id="syncModal" class="modal">
+    <div id="syncModalFromCaller" class="modal">
         <div class="modal-content">
-            <button class="modal-close" onclick="closeModal('syncModal')">×</button>
-            <h2 data-lang="sync_title">Sincronizar con Locutor</h2>
-            <p data-lang="sync_instructions">Escanea el código QR del locutor para sincronizar los números llamados:</p>
+            <button class="modal-close" onclick="closeModal('syncModalFromCaller')">×</button>
+            <h2 data-lang="sync_from_caller_title">Sincronizar desde Locutor</h2>
+            <p data-lang="sync_from_caller_instructions">Muestra el código QR para que jugadores sincronicen los números llamados:</p>
             <div id="qrcode"></div>
-            <p data-lang="sync_or">O ingresa el código manualmente:</p>
-            <input type="text" class="validate-input" id="syncCodeInput" placeholder="Código de sincronización">
-            <button class="validate-button" onclick="syncWithCode()">
-                <span data-lang="sync_apply">Aplicar</span>
-            </button>
+            <p data-lang="sync_from_caller_or">O dales este código para que lo ingresen manualmente:</p>
+            <input type="text" class="validate-input" id="syncCodeOutput" placeholder="Código de sincronización">
         </div>
     </div>
-
+	<div id="syncModalToPlayer" class="modal">
+		<div class="modal-content">
+			<button class="modal-close" onclick="closeModal('syncModalToPlayer')">×</button>
+			<h2 data-lang="sync_to_player_title">Código de Sincronización</h2>
+			<p data-lang="sync_to_player_instructions">Escanea el Código QR del Locutor para sincronizar los llamados:</p>
+			<div id="cameraPreview" style="display: none;">
+				<video id="qrVideo" style="width: 100%; max-width: 400px;"></video>
+				<canvas id="qrCanvas" style="display: none;"></canvas>
+			</div>
+			<!-- QR scanning button -->
+			<button class="control-button" onclick="startQRScanner()" id="scanButton">
+				<span data-lang="scan_qr_button">Escanear QR</span>
+			</button>
+			<p data-lang="sync_to_player_or">O ingresa el código manualmente:</p>
+			<input type="text" class="validate-input" id="syncCodeInput" placeholder="Código de sincronización">
+			<button class="control-button sync-button" onclick="syncWithCode()">
+				<span data-lang="sync_apply">Aplicar</span>
+			</button>
+		</div>
+	</div>
+	<div id="validationModal" class="modal">
+		<div class="modal-content">
+			<button class="modal-close" onclick="closeModal('validationModal')">×</button>
+			<h2 data-lang="validation_title">Validación de Cartón</h2>
+			<div class="scorecard-container">
+				<div class="scorecard" id="validationScorecard">
+					<!-- Scorecard will be generated dynamically -->
+				</div>
+				<div class="scorecard-number">
+					<span data-lang="scorecard_label">Cartón</span> #<span id="validationScorecardNumber"></span>
+				</div>
+			</div>
+			<div id="validationResult" class="validation-result">
+				<!-- Result message will be displayed here -->
+			</div>
+		</div>
+	</div>
     <!-- Win Message -->
     <div class="win-message" id="winMessage">
         <span data-lang="win_message">¡GANASTE!</span>
@@ -768,9 +929,9 @@
                     <p>Se vendía en escuelas costarricenses para ayudar a los niños a aprender las tablas de multiplicar mientras jugaban.</p>
                     <p>Esta versión digital mantiene el espíritu educativo del juego original.</p>
                 `,
-                sync_title: "Sincronizar con Locutor",
-                sync_instructions: "Escanea el código QR del locutor para sincronizar los números llamados:",
-                sync_or: "O ingresa el código manualmente:",
+                sync_from_caller_title: "Sincronizar para Jugadores",
+                sync_from_caller_instructions: "Muestra el código QR para que jugadores sincronicen los números llamados:",
+                sync_from_caller_or: "O dales este código para que lo ingresen manualmente:",
                 sync_apply: "Aplicar",
                 win_message: "¡GANASTE!",
 				row: "Fila",
@@ -778,7 +939,24 @@
 				diagonal: "Diagonal",
 				four_corners: "Cuatro Esquinas",
 				full_card: "Cartón Lleno",
-				all_called_msg: "Todos las 45 multiplicaciones han sido llamadas"
+				all_called_msg: "Todos las 45 multiplicaciones han sido llamadas",
+				show_sync_from_caller_button: "Abrir Sincro",
+				sync_to_player_title: "Sincronizar con Locutor",
+				sync_to_player_instructions: "Escanea el Código QR del Locutor para sincronizar los llamados:",
+				sync_to_player_or: "O ingresa el código manualmente:",
+				scan_qr_button: "Escanear QR",
+				sync_apply: "Aplicar",
+				stop_scanning: "Detener Escaneo",
+				camera_error: "Error al acceder a la cámara",
+				qr_scan_success: "Código QR escaneado exitosamente",
+				sync_completed: "Sincronización completada",
+				scorecard_invalid: "Número de cartón inválido",
+				game_code_invalid: "Código de sincronización inválido",
+				validation_title: "Validación de Cartón",
+				validation_winner: "¡Este cartón es ganador!",
+				validation_no_winner: "Este cartón no ha ganado aún",
+				validation_wins: "Gana con: ",
+				scorecard_code_placeholder: "Código del cartón"
             },
             en: {
                 menu_reset: "Reset",
@@ -811,9 +989,9 @@
                     <p>It was sold in Costa Rican schools to help children learn multiplication tables while playing.</p>
                     <p>This digital version maintains the educational spirit of the original game.</p>
                 `,
-                sync_title: "Sync with Caller",
-                sync_instructions: "Scan the caller's QR code to sync called numbers:",
-                sync_or: "Or enter the code manually:",
+                sync_from_caller_title: "Sync for Players",
+                sync_from_caller_instructions: "Show the QR for players to sync called numbers:",
+                sync_from_caller_or: "Or let them enter this code manually:",
                 sync_apply: "Apply",
                 win_message: "YOU WIN!",
 				row: "Row",
@@ -821,7 +999,23 @@
 				diagonal: "Diagonal",
 				four_corners: "Four Corners",
 				full_card: "Full Card",
-				all_called_msg: "All 45 multiplications have been called"
+				all_called_msg: "All 45 multiplications have been called",
+				show_sync_from_caller_button: "Show Sync",
+				sync_to_player_title: "Sync with Caller",
+				sync_to_player_instructions: "Scan the Caller QR code to sync calls:",
+				sync_to_player_or: "Or enter the code manually:",
+				scan_qr_button: "Scan QR",
+				sync_apply: "Apply",
+				stop_scanning: "Stop Scanning",
+				camera_error: "Error accessing camera",
+				qr_scan_success: "QR code scanned successfully",
+				scorecard_invalid: "Invalid scorecard code",
+				game_code_invalid: "Sync code invalid",
+				validation_title: "Card Validation",
+				validation_winner: "This card is a winner!",
+				validation_no_winner: "This card hasn't won yet",
+				validation_wins: "Wins with: ",
+				scorecard_code_placeholder: "Card code"
             }
         };
 
@@ -835,7 +1029,7 @@
         let playerScorecardNumber = null;
         let playerHistory = []; // see function saveHistory()
         let playerHistoryIndex = -1;
-        let showingAnswers = true;
+        let showingAnswers = false;
 
 		function createBlankWinsObject() {
 			return {
@@ -1596,8 +1790,22 @@
                     cell.textContent = showingAnswers ? problem.result : `${problem.a}×${problem.b}`;
                     
                     if (callerState[cellIndex-row+1+2*col] === '1') {
-                        cell.classList.add('called');
-                    }
+                        cell.classList.add('called'); // Green
+                    } else {
+						// Check if another problem with same result was called
+						let resultCalled = false;
+						for (let i = 0; i < 45; i++) {
+							if (i !== (cellIndex-row+1+2*col) &&  // Not the same problem
+								callerState[i] === '1' &&          // That problem was called
+								multiplicationProblems[i].result === problem.result) {  // Same result
+								resultCalled = true;
+								break;
+							}
+						}
+						if (resultCalled) {
+							cell.classList.add('result-called');  // Yellow
+						}
+					}
                     
                     rowDiv.appendChild(cell);
                     cellIndex--;
@@ -1611,55 +1819,196 @@
             for (let i = 0; i < 45; i++) {
                 const cell = document.getElementById(`grid-cell-${i}`);
                 if (cell) {
-                    if (callerState[i] === '1') {
-                        cell.classList.add('called');
-                    } else {
-                        cell.classList.remove('called');
-                    }
+					// Remove both classes first
+					cell.classList.remove('called', 'result-called');
+					
+					if (callerState[i] === '1') {
+						cell.classList.add('called');  // Green
+					} else {
+						// Check if another problem with same result was called
+						const problem = multiplicationProblems[i];
+						let resultCalled = false;
+						for (let j = 0; j < 45; j++) {
+							if (j !== i &&  // Different problem
+								callerState[j] === '1' &&  // Was called
+								multiplicationProblems[j].result === problem.result) {  // Same result
+								resultCalled = true;
+								break;
+							}
+						}
+						if (resultCalled) {
+							cell.classList.add('result-called');  // Yellow
+						}
+					}
                 }
             }
         }
 
         function toggleGridDisplay() {
             showingAnswers = !showingAnswers;
-            document.getElementById('gridToggle').textContent = showingAnswers ? 'R/' : 'a × b';
+            document.getElementById('gridToggle').textContent = showingAnswers ? ' R/ ' : 'a × b';
             createTriangularGrid();
         }
 
         // Validation
         function validateScorecard() {
-            const input = document.getElementById('validateInput');
-            const cardNumber = parseInt(input.value);
-            
-            if (isNaN(cardNumber) || cardNumber < 1 || cardNumber > TOTAL_POSSIBLE_SCORECARDS) {
-                alert('Número de cartón inválido');
-                return;
-            }
-            
-            const scorecard = generateScorecard(cardNumber - 1);
-            let hasWin = false;
-            
-            // Check all called numbers against the scorecard
-            calledProblems.forEach(problem => {
-                for (let i = 0; i < 5; i++) {
-                    for (let j = 0; j < 5; j++) {
-                        if (scorecard[i][j].value === problem.result) {
-                            scorecard[i][j].chipped = true;
-                        }
-                    }
-                }
-            });
-            
-            // Quick win check (simplified for validation)
-            // This would need the full win checking logic
-            
-            alert(hasWin ? '¡Cartón ganador!' : 'Este cartón no ha ganado aún');
-        }
+			const input = document.getElementById('validateInput');
+			const scorecardCode = input.value.trim().toLowerCase();
+			
+			// Validate input format (6 base-32 characters)
+			if (scorecardCode.length !== 6) {
+				alert(languages[currentLanguage].scorecard_invalid);
+				return;
+			}
+			
+			try {
+				// Decode base-32 to bit string
+				const bitString = decodeBase32Custom(scorecardCode);
+				
+				// Convert bit string to number (take first 30 bits for scorecard number)
+				const cardNumber = parseInt(bitString.substr(0, 30), 2);
+				
+				if (isNaN(cardNumber) || cardNumber < 1 || cardNumber > TOTAL_POSSIBLE_SCORECARDS) {
+					alert(languages[currentLanguage].scorecard_invalid);
+					return;
+				}
+				
+				// Generate the scorecard
+				const scorecard = generateScorecard(cardNumber - 1);
+				
+				// Check all called numbers against the scorecard
+				calledProblems.forEach(problem => {
+					for (let i = 0; i < 5; i++) {
+						for (let j = 0; j < 5; j++) {
+							if (scorecard[i][j].value === problem.result) {
+								scorecard[i][j].chipped = true;
+							}
+						}
+					}
+				});
+				
+				// Check for wins
+				const wins = checkValidationWins(scorecard);
+				
+				// Display the validation result
+				showValidationResult(scorecard, scorecardCode, wins);
+				
+			} catch (e) {
+				alert(languages[currentLanguage].scorecard_invalid);
+			}
+		}
+		
+		function checkValidationWins(scorecard) {
+			const wins = [];
+			const columnLetters = ['M', 'U', 'L', 'T', 'I'];
+			
+			// Check full card first
+			let fullCard = true;
+			for (let i = 0; i < 5; i++) {
+				for (let j = 0; j < 5; j++) {
+					if (!scorecard[i][j].chipped) {
+						fullCard = false;
+						break;
+					}
+				}
+				if (!fullCard) break;
+			}
+			
+			if (fullCard) {
+				wins.push(languages[currentLanguage].full_card);
+				return wins; // If full card, no need to check other wins
+			}
+			
+			// Check rows
+			for (let i = 0; i < 5; i++) {
+				if (scorecard[i].every(cell => cell.chipped)) {
+					wins.push(`${languages[currentLanguage].row} ${i + 1}`);
+				}
+			}
+			
+			// Check columns
+			for (let j = 0; j < 5; j++) {
+				let columnWin = true;
+				for (let i = 0; i < 5; i++) {
+					if (!scorecard[i][j].chipped) {
+						columnWin = false;
+						break;
+					}
+				}
+				if (columnWin) {
+					wins.push(`${languages[currentLanguage].column} ${columnLetters[j]}`);
+				}
+			}
+			
+			// Check diagonals
+			let diagonal1 = true;
+			let diagonal2 = true;
+			for (let i = 0; i < 5; i++) {
+				if (!scorecard[i][i].chipped) diagonal1 = false;
+				if (!scorecard[i][4-i].chipped) diagonal2 = false;
+			}
+			
+			let diagonalCount = 0;
+			if (diagonal1) {
+				wins.push(`${languages[currentLanguage].diagonal} ↘`);
+				diagonalCount++;
+			}
+			if (diagonal2) {
+				wins.push(`${languages[currentLanguage].diagonal} ↙`);
+				diagonalCount++;
+			}
+			
+			// Check four corners only if we don't have both diagonals
+			if (diagonalCount < 2) {
+				const fourCorners = scorecard[0][0].chipped && 
+								  scorecard[0][4].chipped && 
+								  scorecard[4][0].chipped && 
+								  scorecard[4][4].chipped;
+				if (fourCorners) {
+					wins.push(languages[currentLanguage].four_corners);
+				}
+			}
+			
+			return wins;
+		}
+
+		function showValidationResult(scorecard, scorecardCode, wins) {
+			// Create the scorecard UI
+			createScorecardUI('validationScorecard', scorecard, false);
+			
+			// Display the scorecard number
+			document.getElementById('validationScorecardNumber').textContent = scorecardCode.toLowerCase();
+			
+			// Display the result message
+			const resultDiv = document.getElementById('validationResult');
+			
+			if (wins.length > 0) {
+				resultDiv.className = 'validation-result winner';
+				resultDiv.innerHTML = `
+					<div style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">
+						${languages[currentLanguage].validation_winner}
+					</div>
+					<div>${languages[currentLanguage].validation_wins}${wins.join(', ')}</div>
+				`;
+				
+				// Add win animation to the scorecard
+				document.getElementById('validationScorecard').classList.add('win-animation');
+				setTimeout(() => {
+					document.getElementById('validationScorecard').classList.remove('win-animation');
+				}, 1500);
+			} else {
+				resultDiv.className = 'validation-result no-winner';
+				resultDiv.innerHTML = languages[currentLanguage].validation_no_winner;
+			}
+			
+			// Show the modal
+			document.getElementById('validationModal').classList.add('active');
+		}
 
         // Sync functions
-        function showSyncModal() {
-            document.getElementById('syncModal').classList.add('active');
-            generateQRCode();
+        function showSyncModalToPlayer() {
+			document.getElementById('syncModalToPlayer').classList.add('active');
+			return;
         }
 
         function generateQRCode() {
@@ -1679,37 +2028,64 @@
             });
         }
 
-        function syncWithCode() {
-            const input = document.getElementById('syncCodeInput');
-            try {
-                const syncData = JSON.parse(input.value);
-                if (syncData.state && syncData.state.length === 45) {
-                    // Apply the sync
-                    callerState = syncData.state;
-                    
-                    // Mark all called numbers on the scorecard
-                    for (let i = 0; i < 45; i++) {
-                        if (callerState[i] === '1') {
-                            const problem = multiplicationProblems[i];
-                            for (let row = 0; row < 5; row++) {
-                                for (let col = 0; col < 5; col++) {
-                                    if (playerScorecard[row][col].value === problem.result) {
-                                        playerScorecard[row][col].chipped = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    updateScorecardUI(true);
-                    checkWin();
-                    closeModal('syncModal');
-                    alert('Sincronización completada');
-                }
-            } catch (e) {
-                alert('Código de sincronización inválido');
-            }
-        }
+		function syncWithCode() {
+			const input = document.getElementById('syncCodeInput');
+			const inputValue = input.value.trim();
+			
+			try {
+				let callerStateToApply;
+				
+				// Check if it's JSON format (legacy/QR scan)
+				if (inputValue.startsWith('{')) {
+					const syncData = JSON.parse(inputValue);
+					if (syncData.state && syncData.state.length === 45) {
+						callerStateToApply = syncData.state;
+					} else {
+						throw new Error('Invalid sync data format');
+					}
+				} else {
+					// Assume it's base-32 encoded
+					callerStateToApply = decodeBase32Custom(inputValue);
+					
+					if (callerStateToApply.length !== 45) {
+						throw new Error('Invalid sync code length');
+					}
+				}
+				
+				// Apply the sync
+				callerState = callerStateToApply;
+				
+				// First, unchip all numbers (except FREE)
+				for (let row = 0; row < 5; row++) {
+					for (let col = 0; col < 5; col++) {
+						if (playerScorecard[row][col].value !== 'FREE') {
+							playerScorecard[row][col].chipped = false;
+						}
+					}
+				}
+				
+				// Mark all called numbers on the scorecard
+				for (let i = 0; i < 45; i++) {
+					if (callerState[i] === '1') {
+						const problem = multiplicationProblems[i];
+						for (let row = 0; row < 5; row++) {
+							for (let col = 0; col < 5; col++) {
+								if (playerScorecard[row][col].value === problem.result) {
+									playerScorecard[row][col].chipped = true;
+								}
+							}
+						}
+					}
+				}
+				
+				updateScorecardUI(true);
+				closeModal('syncModalToPlayer');
+				alert(languages[currentLanguage].sync_completed);
+				checkWin();
+			} catch (e) {
+				alert(languages[currentLanguage].game_code_invalid);
+			}
+		}
 
         // Mode switching
         function startCallerMode() {
@@ -1737,7 +2113,7 @@
             playerScorecard = generateScorecard(playerScorecardNumber - 1);
             
             const numberSpan = document.getElementById(currentMode === 'both' ? 'bothScorecardNumber' : 'scorecardNumber');
-            numberSpan.textContent = playerScorecardNumber;
+            numberSpan.textContent = encodeBase32Custom((playerScorecardNumber >>> 0).toString(2).padStart(30, '0'));
             
             createScorecardUI(currentMode === 'both' ? 'bothScorecard' : 'playerScorecard', playerScorecard);
             
@@ -1836,9 +2212,184 @@
             }
         });
 
+		function showSyncModalFromCaller() {
+			/*// Update modal content for caller perspective
+			const modalTitle = document.querySelector('#syncModalFromCaller h2');
+			const modalInstructions = document.querySelector('#syncModalFromCaller p[data-lang="sync_from_caller_instructions"]');
+			
+			modalTitle.setAttribute('data-lang', 'sync_from_caller_title');
+			modalInstructions.setAttribute('data-lang', 'sync_from_caller_instructions');
+			
+			// Update the language
+			updateLanguage();*/
+			
+			// Show the modal and generate QR
+			document.getElementById('syncModalFromCaller').classList.add('active');
+			generateCallerQRCode();
+		}
+		
+		function encodeBase32Custom(bitString) {
+			// Custom base-32 alphabet (excluding M, O, V, Z)
+			const alphabet = "0123456789ABCDEFGHIJKLNPQRSTUWXY";
+			
+			// Pad the bit string to make it a multiple of 5 bits
+			const paddingNeeded = (5 - (bitString.length % 5)) % 5;
+			const paddedBits = bitString + '0'.repeat(paddingNeeded);
+			
+			let result = '';
+			
+			// Convert each 5-bit chunk to a base-32 character
+			for (let i = 0; i < paddedBits.length; i += 5) {
+				const chunk = paddedBits.substr(i, 5);
+				const value = parseInt(chunk, 2);
+				result += alphabet[value];
+			}
+			
+			return result.toLowerCase(); // Return in lowercase as requested
+		}
+
+		function decodeBase32Custom(encoded) {
+			const alphabet = "0123456789ABCDEFGHIJKLNPQRSTUWXY";
+			const upperEncoded = encoded.toUpperCase();
+			
+			let bitString = '';
+			
+			for (let i = 0; i < upperEncoded.length; i++) {
+				const char = upperEncoded[i];
+				const value = alphabet.indexOf(char);
+				
+				if (value === -1) {
+					throw new Error('Invalid character in sync code');
+				}
+				
+				// Convert to 5-bit binary string
+				bitString += value.toString(2).padStart(5, '0');
+			}
+			
+			// Remove padding and return only the first 45 bits
+			return bitString.substr(0, 45);
+		}
+		
+		function generateCallerQRCode() {
+			const qrcodeDiv = document.getElementById('qrcode');
+			qrcodeDiv.innerHTML = '';
+			
+			// Create sync data with the current caller state
+			//const syncData = {
+			//	state: callerState,
+			//	timestamp: Date.now()
+			//};
+			
+			new QRCode(qrcodeDiv, {
+				text: callerState,
+				width: 200,
+				height: 200
+			});
+			
+			// Also show the sync code as text
+			// Generate base-32 encoded version
+			const encodedState = encodeBase32Custom(callerState);
+			
+			// Display the encoded sync code below the QR
+			const syncCodeOutput = document.getElementById('syncCodeOutput');
+			syncCodeOutput.value = encodedState;
+			syncCodeOutput.setAttribute('readonly', true);
+			syncCodeOutput.style.fontFamily = 'monospace, Consolas, "Courier New"';
+			syncCodeOutput.style.fontSize = '1.2rem';
+			syncCodeOutput.style.letterSpacing = '0.1em';
+			syncCodeOutput.style.textAlign = 'center';
+		}
+		
+		// QR Scanner functionality 
+		let scanning = false;
+		let videoStream = null;
+
+		function startQRScanner() {
+			const video = document.getElementById('qrVideo');
+			const canvas = document.getElementById('qrCanvas');
+			const canvasContext = canvas.getContext('2d', { willReadFrequently: true });
+			const cameraPreview = document.getElementById('cameraPreview');
+			const scanButton = document.getElementById('scanButton');
+			
+			if (scanning) {
+				stopQRScanner();
+				return;
+			}
+			
+			// Update button text
+			scanButton.querySelector('span').textContent = languages[currentLanguage].stop_scanning;
+			
+			navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+				.then(function(stream) {
+					scanning = true;
+					videoStream = stream;
+					video.srcObject = stream;
+					video.setAttribute("playsinline", true); // iOS compatibility
+					video.play();
+					cameraPreview.style.display = 'block';
+					requestAnimationFrame(tick);
+				})
+				.catch(function(err) {
+					console.error("Camera error:", err);
+					alert(languages[currentLanguage].camera_error);
+				});
+			
+			function tick() {
+				if (video.readyState === video.HAVE_ENOUGH_DATA && scanning) {
+					canvas.height = video.videoHeight;
+					canvas.width = video.videoWidth;
+					canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height);
+					
+					const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
+					// Note: You'll need to include jsQR library for this to work
+					const code = jsQR(imageData.data, imageData.width, imageData.height);
+					
+					if (code) {
+						// QR code found
+						let codedValue = code.data;
+
+						// Validate it's a 45-bit string
+						if (codedValue.length === 45 && /^[01]{45}$/.test(codedValue)) {
+							// Convert to base-32 encoding
+							const encodedValue = encodeBase32Custom(codedValue);
+							document.getElementById('syncCodeInput').value = encodedValue;
+							stopQRScanner();
+							syncWithCode();
+						} else {
+							// Invalid format - keep scanning
+							console.warn('Invalid QR code format:', codedValue);
+						}
+					}
+				}
+				
+				if (scanning) {
+					requestAnimationFrame(tick);
+				}
+			}
+		}
+
+		function stopQRScanner() {
+			const video = document.getElementById('qrVideo');
+			const cameraPreview = document.getElementById('cameraPreview');
+			const scanButton = document.getElementById('scanButton');
+			
+			scanning = false;
+			
+			if (videoStream) {
+				videoStream.getTracks().forEach(track => track.stop());
+				videoStream = null;
+			}
+			
+			video.srcObject = null;
+			cameraPreview.style.display = 'none';
+			scanButton.querySelector('span').textContent = languages[currentLanguage].scan_qr_button;
+		}
+
         // Initialize
         initializeMultiplicationData();
         updateLanguage();
+		console.log(decodeBase32Custom("ibkwj4eq7"));
+		console.log(encodeBase32Custom("100100101110100111011001100100011101100000111"));
     </script>
 </body>
 </html>

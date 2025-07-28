@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mateloto - Generador de Impresión</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .section {
+            margin-bottom: 40px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .section h2 {
+            color: #34495e;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="number"], select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        /* Print Styles */
+        @media print {
+            @page {
+                size: letter;
+                margin: 0;
+            }
+
+            body {
+                background-color: white;
+                padding: 0;
+                margin: 0;
+            }
+
+            .container, .no-print {
+                display: none;
+            }
+
+            .print-content {
+                display: block !important;
+            }
+
+            .page, .page-break {
+                break-after: page;
+                page-break-after: always;
+            }
+        }
+
+        .print-content {
+            display: none;
+        }
+
+        /* Multiplication Problems Styles */
+        .problems-page {
+            width: 8.5in;
+            height: 11in;
+            padding: 0.25in;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .problems-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(9, 1fr);
+            gap: 3px;
+            flex: 1;
+        }
+
+        .problem-cell {
+            border: 1px solid #333;
+            padding: 10px;
+            text-align: center;
+            font-size: 36px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f9f9f9;
+            min-height: 90px;
+        }
+
+        /* Scorecard Styles */
+        .scorecards-page {
+            width: 8.5in;
+            height: 11in;
+            padding: 0.25in;
+            margin: 0;
+            position: relative;
+        }
+
+        .scorecards-1 {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            width: 100%;
+        }
+
+        .scorecards-2 {
+            display: grid;
+            grid-template-rows: 1fr 1fr;
+            gap: 0.25in;
+            height: 100%;
+            align-items: center;
+            justify-items: center;
+        }
+
+        .scorecards-4 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 0.25in;
+            height: 100%;
+            align-items: center;
+            justify-items: center;
+        }
+
+        .scorecard {
+            border: 2px solid #2c3e50;
+            padding: 25px;
+            background-color: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .scorecard-header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .scorecard-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .scorecard-number {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.1em;
+        }
+
+        .scorecard-1 .scorecard-number {
+            font-size: 24px;
+        }
+
+        .scorecard-2 .scorecard-number {
+            font-size: 18px;
+        }
+
+        .scorecard-4 .scorecard-number {
+            font-size: 15px;
+        }
+
+        .scorecard-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0;
+            flex: 1;
+            border: 1px solid #333;
+        }
+
+        .scorecard-1 .scorecard {
+            width: calc(8.5in - 0.5in);
+            height: calc(11in - 0.5in);
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        .scorecard-1 .scorecard-grid {
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+        }
+
+        .scorecard-2 .scorecard {
+            height: calc(5.25in - 0.125in);
+            width: 6in;
+            padding: 20px;
+        }
+
+        .scorecard-2 .scorecard-grid {
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+        }
+
+        .scorecard-4 .scorecard {
+            height: calc(5.25in - 0.125in);
+            width: calc(4.125in - 0.125in);
+            padding: 15px;
+        }
+
+        .scorecard-4 .scorecard-grid {
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+        }
+
+        .scorecard-cell {
+            border-right: 1px solid #333;
+            border-bottom: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            background-color: white;
+        }
+
+        .scorecard-cell:nth-child(5n) {
+            border-right: none;
+        }
+
+        .scorecard-cell:nth-last-child(-n+5) {
+            border-bottom: none;
+        }
+
+        .scorecard-1 .scorecard-cell {
+            font-size: 56px;
+        }
+
+        .scorecard-2 .scorecard-cell {
+            font-size: 32px;
+        }
+
+        .scorecard-4 .scorecard-cell {
+            font-size: 22px;
+        }
+
+        .scorecard-1 .scorecard-title {
+            font-size: 60px;
+        }
+
+        .scorecard-2 .scorecard-title {
+            font-size: 40px;
+        }
+
+        .scorecard-4 .scorecard-title {
+            font-size: 32px;
+        }
+
+        .scorecard-header-cell {
+            background-color: #34495e;
+            color: white;
+            font-weight: bold;
+        }
+
+        .scorecard-1 .scorecard-header-cell {
+            font-size: 48px;
+        }
+
+        .scorecard-2 .scorecard-header-cell {
+            font-size: 30px;
+        }
+
+        .scorecard-4 .scorecard-header-cell {
+            font-size: 20px;
+        }
+
+        .scorecard-free {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        .scorecard-1 .scorecard-free {
+            font-size: 48px !important;
+        }
+
+        .scorecard-2 .scorecard-free {
+            font-size: 32px !important;
+        }
+
+        .scorecard-4 .scorecard-free {
+            font-size: 22px !important;
+        }
+
+        @media screen {
+            .problems-page, .scorecards-page {
+                border: 1px solid #ddd;
+                margin: 20px auto;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container no-print">
+        <h1>Mateloto - Generador de Impresión</h1>
+        
+        <!-- Multiplication Problems Section -->
+        <div class="section">
+            <h2>1. Problemas de Multiplicación (Para el Locutor)</h2>
+            <div class="form-group">
+                <label for="problemsType">Tipo de problemas:</label>
+                <select id="problemsType">
+                    <option value="45">45 problemas únicos (sin duplicados)</option>
+                    <option value="81">81 problemas (con simétricos)</option>
+                </select>
+            </div>
+            <button onclick="generateProblems()">Generar Problemas para Imprimir</button>
+            <p style="margin-top: 10px; color: #666; font-size: 14px;">
+                <strong>Nota:</strong> Los bordes de los rectángulos sirven como guías para cortar con tijeras.
+            </p>
+        </div>
+
+        <!-- Scorecards Section -->
+        <div class="section">
+            <h2>2. Cartones de Juego (Para los Jugadores)</h2>
+            <div class="form-group">
+                <label for="numScorecards">Número de cartones (1-1000):</label>
+                <input type="number" id="numScorecards" min="1" max="1000" value="10">
+            </div>
+            <div class="form-group">
+                <label for="scorecardsPerPage">Cartones por página:</label>
+                <select id="scorecardsPerPage">
+                    <option value="1">1 cartón por página (grande)</option>
+                    <option value="2">2 cartones por página (mediano)</option>
+                    <option value="4">4 cartones por página (pequeño)</option>
+                </select>
+            </div>
+            <button onclick="generateScorecards()">Generar Cartones para Imprimir</button>
+        </div>
+    </div>
+
+    <!-- Print Content Area -->
+    <div id="printContent" class="print-content"></div>
+
+    <script>
+        // Constants
+        const repeatedResults = [4, 6, 8, 9, 12, 16, 18, 24, 36];
+        const singleResults = [1, 2, 3, 5, 7, 10, 14, 15, 20, 21, 25, 27, 28, 30, 32, 35, 40, 42, 45, 48, 49, 54, 56, 63, 64, 72, 81];
+        const TOTAL_POSSIBLE_SCORECARDS = 393693300;
+
+        // Base32 encoding for scorecard numbers
+        function encodeBase32Custom(bitString) {
+            const alphabet = "0123456789ABCDEFGHIJKLNPQRSTUWXY";
+            const paddingNeeded = (5 - (bitString.length % 5)) % 5;
+            const paddedBits = bitString + '0'.repeat(paddingNeeded);
+            let result = '';
+            
+            for (let i = 0; i < paddedBits.length; i += 5) {
+                const chunk = paddedBits.substr(i, 5);
+                const value = parseInt(chunk, 2);
+                result += alphabet[value];
+            }
+            
+            return result.toLowerCase();
+        }
+
+        // Binomial coefficient calculation
+        function binomialCoefficient(n, k) {
+            if (n < 0) return 0;
+            if (k < 0 || k > n) return 0;
+            if (k === 0 || k === n) return 1;
+            
+            if (k > n - k) {
+                k = n - k;
+            }
+            
+            let result = 1;
+            for (let i = 1; i <= k; i++) {
+                result = result * (n - i + 1) / i;
+            }
+            
+            return Math.floor(result);
+        }
+
+        // Unranking algorithm
+        function unrankCombination(totalElements, combinationLength, targetRank) {
+            let combination = [];
+            let remainingRank = targetRank - 1;
+            let nextMinimumElement = 0;
+            
+            for (let currentPosition = 0; currentPosition < combinationLength; currentPosition++) {
+                for (let candidateElement = nextMinimumElement; candidateElement < totalElements; candidateElement++) {
+                    let elementsRemaining = totalElements - candidateElement - 1;
+                    let positionsRemaining = combinationLength - currentPosition - 1;
+                    let combinationsCount = binomialCoefficient(elementsRemaining, positionsRemaining);
+                    
+                    if (remainingRank < combinationsCount) {
+                        combination.push(candidateElement);
+                        nextMinimumElement = candidateElement + 1;
+                        break;
+                    } else {
+                        remainingRank -= combinationsCount;
+                    }
+                }
+            }
+            return combination;
+        }
+
+        // Generate multiplication problems
+        function getMultiplicationProblems(includeSymmetric) {
+            const problems = [];
+            
+            if (includeSymmetric) {
+                // All 81 problems
+                for (let i = 1; i <= 9; i++) {
+                    for (let j = 1; j <= 9; j++) {
+                        problems.push(`${i} × ${j}`);
+                    }
+                }
+            } else {
+                // Only 45 unique problems
+                for (let i = 1; i <= 9; i++) {
+                    for (let j = i; j <= 9; j++) {
+                        problems.push(`${i} × ${j}`);
+                    }
+                }
+            }
+            
+            return problems;
+        }
+
+        // Generate problems for printing
+        function generateProblems() {
+            const type = document.getElementById('problemsType').value;
+            const problems = getMultiplicationProblems(type === '81');
+            
+            let html = '';
+            
+            // Create pages of problems (27 per page in 3x9 grid)
+            for (let page = 0; page < Math.ceil(problems.length / 27); page++) {
+                html += `<div class="problems-page page">`;
+                const title = type === '81' ? 'Problemas de Multiplicación (81 problemas)' : 'Problemas de Multiplicación (45 únicos)';
+                html += `<h2 style="text-align: center; margin-bottom: 10px; font-size: 20px;">${title} by Xplorandia - Página ${page + 1}</h2>`;
+                html += `<div class="problems-grid">`;
+                
+                for (let i = 0; i < 27 && (page * 27 + i) < problems.length; i++) {
+                    html += `<div class="problem-cell">${problems[page * 27 + i]}</div>`;
+                }
+                
+                // Fill empty cells if needed
+                const remainingCells = 27 - (problems.length - page * 27);
+                if (remainingCells > 0 && page === Math.ceil(problems.length / 27) - 1) {
+                    for (let i = 0; i < remainingCells; i++) {
+                        html += `<div class="problem-cell" style="visibility: hidden;"></div>`;
+                    }
+                }
+                
+                html += `</div></div>`;
+            }
+            
+            document.getElementById('printContent').innerHTML = html;
+            window.print();
+        }
+
+        // Generate scorecard
+        function generateScorecard(cardNumber) {
+            const repeatedCount = binomialCoefficient(9, 6);
+            const singleCount = binomialCoefficient(27, 18);
+            
+            const repeatedRank = (cardNumber % repeatedCount) + 1;
+            const singleRank = Math.floor(cardNumber / repeatedCount) + 1;
+            
+            const selectedRepeated = unrankCombination(9, 6, repeatedRank);
+            const selectedSingle = unrankCombination(27, 18, singleRank);
+            
+            const scorecardResults = [];
+            selectedRepeated.forEach(i => scorecardResults.push(repeatedResults[i]));
+            selectedSingle.forEach(i => scorecardResults.push(singleResults[i]));
+            
+            scorecardResults.sort((a, b) => a - b);
+            
+            // Create 5x5 grid with center free
+            const grid = [];
+            for (let i = 0; i < 5; i++) {
+                grid.push(new Array(5));
+            }
+            
+            // Fill by columns
+            let resultIndex = 0;
+            
+            // First two columns
+            for (let col = 0; col < 2; col++) {
+                for (let row = 0; row < 5; row++) {
+                    grid[row][col] = scorecardResults[resultIndex++];
+                }
+            }
+            
+            // Third column (skip center)
+            for (let row = 0; row < 5; row++) {
+                if (row !== 2) {
+                    grid[row][2] = scorecardResults[resultIndex++];
+                } else {
+                    grid[row][2] = 'FREE';
+                }
+            }
+            
+            // Last two columns
+            for (let col = 3; col < 5; col++) {
+                for (let row = 0; row < 5; row++) {
+                    grid[row][col] = scorecardResults[resultIndex++];
+                }
+            }
+            
+            return grid;
+        }
+
+        // Generate scorecards for printing
+        function generateScorecards() {
+            const numCards = parseInt(document.getElementById('numScorecards').value);
+            const perPage = parseInt(document.getElementById('scorecardsPerPage').value);
+            
+            if (numCards < 1 || numCards > 1000) {
+                alert('Por favor ingrese un número entre 1 y 1000');
+                return;
+            }
+            
+            // Generate unique random scorecard numbers
+            const usedNumbers = new Set();
+            const scorecardNumbers = [];
+            
+            while (scorecardNumbers.length < numCards) {
+                const num = Math.floor(Math.random() * TOTAL_POSSIBLE_SCORECARDS);
+                if (!usedNumbers.has(num)) {
+                    usedNumbers.add(num);
+                    scorecardNumbers.push(num);
+                }
+            }
+            
+            let html = '';
+            
+            // Create pages
+            for (let page = 0; page < Math.ceil(numCards / perPage); page++) {
+                html += `<div class="scorecards-page page">`;
+                html += `<div class="scorecards-${perPage}">`;
+                
+                for (let i = 0; i < perPage && (page * perPage + i) < numCards; i++) {
+                    const cardIndex = page * perPage + i;
+                    const cardNumber = scorecardNumbers[cardIndex];
+                    const scorecard = generateScorecard(cardNumber);
+                    
+                    html += `<div class="scorecard scorecard-${perPage}">`;
+                    html += `<div class="scorecard-header">`;
+                    html += `<div class="scorecard-title">MATELOTO</div>`;
+                    const cardNumberBinary = cardNumber.toString(2).padStart(30, '0');
+                    const cardCode = encodeBase32Custom(cardNumberBinary);
+                    html += `<div class="scorecard-number">Cartón #${cardCode}</div>`;
+                    html += `</div>`;
+                    html += `<div class="scorecard-grid">`;
+                    
+                    // Headers
+                    const headers = ['M', 'U', 'L', 'T', 'I'];
+                    headers.forEach(header => {
+                        html += `<div class="scorecard-cell scorecard-header-cell">${header}</div>`;
+                    });
+                    
+                    // Grid cells
+                    for (let row = 0; row < 5; row++) {
+                        for (let col = 0; col < 5; col++) {
+                            const value = scorecard[row][col];
+                            if (value === 'FREE') {
+                                html += `<div class="scorecard-cell scorecard-free">❤</div>`;
+                            } else {
+                                html += `<div class="scorecard-cell">${value}</div>`;
+                            }
+                        }
+                    }
+                    
+                    html += `</div>`;
+                html += `<div style="text-align: center; font-size: 10px; color: #999; margin-top: 10px;">© 2025 Leonardo Murillo, Xplorandia. Based on Mateloto by Willy Murillo Rivas</div>`;
+                html += `</div>`;
+                }
+                
+                html += `</div></div>`;
+            }
+            
+            document.getElementById('printContent').innerHTML = html;
+            window.print();
+        }
+    </script>
+</body>
+</html>

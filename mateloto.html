@@ -218,7 +218,7 @@
 		
         .multiplication-counter {
             font-size: 1.1rem;
-            margin: 1rem 0;
+            margin: 0.5rem 0;
             color: #666;
         }
 
@@ -292,12 +292,12 @@
             margin-right: 0.5rem;
         }
 
-        .validate-input {
+        .mateloto-input {
             padding: 0.75rem;
             font-size: 1rem;
             border: 1px solid #ddd;
             border-radius: 4px;
-            width: 200px;
+            width: 210px;
         }
 
         /* Player Mode Styles */
@@ -724,7 +724,7 @@
             </div>
 
             <div class="validate-section">
-                <input type="text" class="validate-input" id="validateInput" placeholder="Código del cartón"
+                <input type="text" class="mateloto-input" id="validateInput" placeholder="Código del cartón"
 				       data-lang-placeholder="scorecard_code_placeholder" maxlength="6">
 				<button class="validate-button" onclick="validateScorecard()">
                     <span data-lang="validate_button">Validar Cartón</span>
@@ -779,9 +779,9 @@
                         <span data-lang="multiplication_label">Multiplication:</span> 
                         <span id="bothProblemCounter">0/0</span>
                     </div>
-                    <button class="locutor-button" onclick="switchToCallerView()">
+                    <!-- <button class="locutor-button" onclick="switchToCallerView()">
                         <span data-lang="caller_view_button">Locutor</span>
-                    </button>
+                    </button> -->
                 </div>
 
                 <div class="scorecard-container">
@@ -849,7 +849,8 @@
             <p data-lang="sync_from_caller_instructions">Muestra el código QR para que jugadores sincronicen los números llamados:</p>
             <div id="qrcode"></div>
             <p data-lang="sync_from_caller_or">O dales este código para que lo ingresen manualmente:</p>
-            <input type="text" class="validate-input" id="syncCodeOutput" placeholder="Código de sincronización">
+            <input type="text" class="mateloto-input" id="syncCodeOutput" placeholder="Código de sincronización"
+			       data-lang-placeholder="sync_code" >
         </div>
     </div>
 	<div id="syncModalToPlayer" class="modal">
@@ -866,7 +867,8 @@
 				<span data-lang="scan_qr_button">Escanear QR</span>
 			</button>
 			<p data-lang="sync_to_player_or">O ingresa el código manualmente:</p>
-			<input type="text" class="validate-input" id="syncCodeInput" placeholder="Código de sincronización">
+			<input type="text" class="mateloto-input" id="syncCodeInput" 
+			       placeholder="Código de sincronización" data-lang-placeholder="sync_code" >
 			<button class="control-button sync-button" onclick="syncWithCode()">
 				<span data-lang="sync_apply">Aplicar</span>
 			</button>
@@ -956,7 +958,8 @@
 				validation_winner: "¡Este cartón es ganador!",
 				validation_no_winner: "Este cartón no ha ganado aún",
 				validation_wins: "Gana con: ",
-				scorecard_code_placeholder: "Código del cartón"
+				scorecard_code_placeholder: "Código del cartón",
+				sync_code: "Código de sincronización"
             },
             en: {
                 menu_reset: "Reset",
@@ -1015,7 +1018,8 @@
 				validation_winner: "This card is a winner!",
 				validation_no_winner: "This card hasn't won yet",
 				validation_wins: "Wins with: ",
-				scorecard_code_placeholder: "Card code"
+				scorecard_code_placeholder: "Card code",
+				sync_code: "Sync code"
             }
         };
 
@@ -2178,17 +2182,21 @@
         }
 
         function updateLanguage() {
-            document.querySelectorAll('[data-lang]').forEach(element => {
-                const key = element.getAttribute('data-lang');
-                if (languages[currentLanguage][key]) {
-                    if (element.hasAttribute('data-lang-placeholder')) {
-                        element.placeholder = languages[currentLanguage][key];
-                    } else {
-                        element.innerHTML = languages[currentLanguage][key];
-                    }
-                }
-				//else default language
-            });
+			// Handle regular text elements
+			document.querySelectorAll('[data-lang]').forEach(element => {
+				const key = element.getAttribute('data-lang');
+				if (languages[currentLanguage][key]) {
+					element.innerHTML = languages[currentLanguage][key];
+				}
+			});
+			
+			// Handle placeholder elements separately
+			document.querySelectorAll('[data-lang-placeholder]').forEach(element => {
+				const key = element.getAttribute('data-lang-placeholder');
+				if (languages[currentLanguage][key]) {
+					element.placeholder = languages[currentLanguage][key];
+				}
+			});
         }
 
         // Keyboard support

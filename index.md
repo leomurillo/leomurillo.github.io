@@ -6,7 +6,7 @@ Whenever I commit to this repository, GitHub Pages will run [Jekyll](https://jek
 
 ### Truth Obsession Model
 
-- [The Shooting-Stars Proof of Concept](/conti-rating.html)
+- [The Shooting-Stars Proof of Concept](/shooting-stars.html)
 - [Draw a Smile prototype](/Smile2.html)
 - [Some vibe-coding prototypes](/continuous-rating-demo.html)
 

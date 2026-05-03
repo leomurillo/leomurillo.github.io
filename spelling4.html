@@ -454,6 +454,35 @@
       color: #78350f;
       letter-spacing: 0.02em;
     }
+
+    .debug-panel {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      background: #0f172a;
+      border: 2px solid #334155;
+      color: #e2e8f0;
+    }
+
+    .debug-panel .label {
+      display: block;
+      margin-bottom: 6px;
+      color: #93c5fd;
+      font-family: "Fredoka", sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .debug-panel pre {
+      margin: 0;
+      max-height: 260px;
+      overflow: auto;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
   </style>
 </head>
 <body>
@@ -526,6 +555,11 @@
         <div class="answer" id="wordRevealText"></div>
       </div>
 
+      <div id="spellDebugWrap" class="debug-panel app-hidden" aria-live="polite">
+        <span class="label">Spell debug log (?debug=1)</span>
+        <pre id="spellDebugLog"></pre>
+      </div>
+
       <div class="footer-next">
         <button type="button" class="btn btn-primary" id="btnNext" disabled>Next word</button>
       </div>
@@ -575,6 +609,8 @@
   "use strict";
 
   var STORAGE_KEY = "spellingBeeKidV1";
+  var DEBUG_ENABLED = (new URLSearchParams(window.location.search)).get("debug") === "1";
+  var spellDebugEl = null;
 
   var REGULAR_WORDS = [
     "bigger", "younger", "stronger", "wavy", "curly", "blond", "straight", "glasses",
@@ -778,6 +814,41 @@
     }
   }
 
+  function appendSpellDebug(label, payload) {
+    if (!DEBUG_ENABLED || !spellDebugEl) return;
+    var stamp = new Date().toISOString().slice(11, 19);
+    var line = "[" + stamp + "] " + label;
+    if (payload !== undefined) {
+      try {
+        line += "\n" + JSON.stringify(payload, null, 2);
+      } catch (e) {
+        line += "\n" + String(payload);
+      }
+    }
+    spellDebugEl.textContent = (spellDebugEl.textContent + line + "\n\n").slice(-18000);
+    spellDebugEl.scrollTop = spellDebugEl.scrollHeight;
+  }
+
+  function explainSpellScores(expectedWord, alts) {
+    var expectedNorm = normalizeText(expectedWord);
+    var expKey = expectedNorm.replace(/\s+/g, "");
+    return (alts || []).slice(0, 12).map(function (alt, idx) {
+      var t = (alt && alt.transcript) ? alt.transcript : "";
+      var norm = normalizeText(t);
+      var candKey = norm.replace(/\s+/g, "");
+      var d = candKey && expKey ? levenshtein(expKey, candKey) : null;
+      return {
+        rank: idx + 1,
+        transcript: t,
+        norm: norm,
+        key: candKey,
+        confidence: alt && typeof alt.confidence === "number" ? alt.confidence : 0,
+        levDistanceToExpected: d,
+        spellPoints: d === null ? 0 : Math.max(0, 10 - d)
+      };
+    });
+  }
+
   function parseSpellCandidates(transcript) {
     var norm = normalizeText(transcript);
     if (!norm) return [];
@@ -855,6 +926,8 @@
   var elApp = document.getElementById("app");
   var viewHome = document.getElementById("viewHome");
   var viewRound = document.getElementById("viewRound");
+  var spellDebugWrap = document.getElementById("spellDebugWrap");
+  spellDebugEl = document.getElementById("spellDebugLog");
   var dlgInstructions = document.getElementById("dlgInstructions");
   var dlgMicHelp = document.getElementById("dlgMicHelp");
   var dlgMicTitle = document.getElementById("dlgMicTitle");
@@ -865,6 +938,13 @@
     elChrome.classList.remove("app-hidden");
   } else {
     elApp.classList.remove("app-hidden");
+    if (DEBUG_ENABLED && spellDebugWrap) {
+      spellDebugWrap.classList.remove("app-hidden");
+      appendSpellDebug("debug enabled", {
+        note: "Spell-only instrumentation active",
+        userAgent: navigator.userAgent
+      });
+    }
     if (window.speechSynthesis) {
       speechSynthesis.getVoices();
       speechSynthesis.addEventListener("voiceschanged", function () {
@@ -1175,6 +1255,15 @@
     var lastResultsRef = null;
     var spellFirstInterim = null;
     var spellFinalByIndex = new Map();
+    if (mode === "spell") {
+      appendSpellDebug("capture start", {
+        mode: mode,
+        lang: rec.lang,
+        interimResults: rec.interimResults,
+        continuous: rec.continuous,
+        maxAlternatives: rec.maxAlternatives
+      });
+    }
 
     rec.onresult = function (event) {
       lastResultsRef = event.results;
@@ -1200,6 +1289,15 @@
         resultsLength: event.results.length,
         snapshot: snap
       });
+      if (mode === "spell") {
+        appendSpellDebug("onresult", {
+          resultIndex: event.resultIndex,
+          resultsLength: event.results.length,
+          finalsByIndex: Array.from(spellFinalByIndex.entries()),
+          firstInterim: spellFirstInterim,
+          snapshot: snap
+        });
+      }
     };
 
     rec.onerror = function (event) {
@@ -1226,6 +1324,13 @@
           alts.unshift({ transcript: concatTrim, confidence: 1 });
         }
         alts = augmentSpellAlternatives(alts, spellFirstInterim);
+        appendSpellDebug("session end built alternatives", {
+          concatParts: concatParts,
+          concatTrim: concatTrim,
+          firstInterim: spellFirstInterim,
+          alternativesCount: alts.length,
+          alternativesTop: alts.slice(0, 8)
+        });
       }
       var structured = lastResultsRef && lastResultsRef.length
         ? serializeResultsSnapshot(lastResultsRef)
@@ -1296,6 +1401,13 @@
     runCapture("spell", "btnSpell", function (alts) {
       var attemptIndex = w.spellAttempts.length + 1;
       var raw = bestSpellScore(w.text, alts);
+      appendSpellDebug("graded spell attempt", {
+        word: w.text,
+        attemptIndex: attemptIndex,
+        awardedPoints: raw,
+        alternativesCount: alts.length,
+        scoredAlternativesTop: explainSpellScores(w.text, alts)
+      });
       w.spellAttempts.push({ raw: raw, capped: raw, attemptIndex: attemptIndex });
 
       var bestSpell = Math.max.apply(

@@ -760,6 +760,44 @@
     return out;
   }
 
+  /** Letters+digits only, lowercased — for comparing spell prefixes across spaces/punctuation. */
+  function spellLetterKey(s) {
+    return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+
+  /**
+   * Desktop Chrome often emits *delta* finals (concat each new final). Android Chrome can mark
+   * almost every segment isFinal while each transcript is a *cumulative prefix* of the next.
+   * Joining those like deltas produces nonsense and steals "We heard" (confidence 1).
+   */
+  function looksLikeCumulativeSpellFinals(results) {
+    if (!results || results.length < 3) return false;
+    var keys = [];
+    var i, res, t, k;
+    var allFinal = true;
+    for (i = 0; i < results.length; i++) {
+      res = results[i];
+      if (!res.isFinal) allFinal = false;
+      t = res && res[0] ? String(res[0].transcript || "") : "";
+      k = spellLetterKey(t);
+      if (k) keys.push(k);
+    }
+    if (!allFinal || keys.length < 3) return false;
+    var mism = 0;
+    for (i = 1; i < keys.length; i++) {
+      if (keys[i].indexOf(keys[i - 1]) !== 0) mism++;
+    }
+    return mism <= 1;
+  }
+
+  function buildSpellPrimaryFromFinals(results, joinedTrim) {
+    if (!results || !results.length) return joinedTrim;
+    if (!looksLikeCumulativeSpellFinals(results)) return joinedTrim;
+    var last = results[results.length - 1];
+    var lastT = last && last[0] ? String(last[0].transcript || "").trim() : "";
+    return lastT || joinedTrim;
+  }
+
   /**
    * Chrome often drops the very first letter in the *final* spell hypothesis while
    * it still appeared in early interims (e.g. "B" then finals "e g i n"). Stitch
@@ -1279,8 +1317,14 @@
         }
       }
       if (mode === "spell" && spellFirstInterim === null && event.results.length > 0) {
-        var t0 = (event.results[0][0].transcript || "").trim();
-        if (t0) spellFirstInterim = t0;
+        var rxi, t0;
+        for (rxi = 0; rxi < event.results.length; rxi++) {
+          t0 = (event.results[rxi][0].transcript || "").trim();
+          if (t0) {
+            spellFirstInterim = t0;
+            break;
+          }
+        }
       }
       var snap = serializeResultsSnapshot(event.results);
       var tag = mode === "spell" ? "[Spell STT]" : "[Pronounce STT]";
@@ -1319,13 +1363,17 @@
         var concatParts = Array.from(spellFinalByIndex.entries())
           .sort(function (a, b) { return a[0] - b[0]; })
           .map(function (entry) { return entry[1]; });
-        var concatTrim = concatParts.join("").trim();
+        var joinedRaw = concatParts.join("").trim();
+        var cumulativeMode = !!(lastResultsRef && looksLikeCumulativeSpellFinals(lastResultsRef));
+        var concatTrim = buildSpellPrimaryFromFinals(lastResultsRef, joinedRaw);
         if (concatTrim) {
           alts.unshift({ transcript: concatTrim, confidence: 1 });
         }
         alts = augmentSpellAlternatives(alts, spellFirstInterim);
         appendSpellDebug("session end built alternatives", {
           concatParts: concatParts,
+          joinedRaw: joinedRaw,
+          cumulativeFinalMode: cumulativeMode,
           concatTrim: concatTrim,
           firstInterim: spellFirstInterim,
           alternativesCount: alts.length,
@@ -1348,7 +1396,7 @@
         mergedAlternativesUsedForScoring: alts,
         note:
           mode === "spell"
-            ? "Spell: maxAlternatives=1 like speech.html; finals accumulated via += results[i][0].transcript; plus merged interims + lead repair fallback."
+            ? "Spell: maxAlternatives=1; join per-index finals for delta-style Chrome; on cumulative-prefix finals (typical Android) use last segment only; merged interims + lead repair fallback."
             : "Pronounce: maxAlternatives=4 for n-best confidence; prefers finals; falls back to last interim if no finals."
       });
 

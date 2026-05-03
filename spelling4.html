@@ -500,7 +500,7 @@
           <h2>Spell</h2>
           <span class="chip pos" id="chipSpell"></span>
         </div>
-        <p class="hint">Spell the word out loud. Tap Spell to start listening, then tap <strong>Stop</strong> when you are done.</p>
+        <p class="hint">Spell the word out loud. Tap Spell to start listening, then tap <strong>Stop</strong> when you are done. Try as many times as you like—your <strong>best</strong> score counts.</p>
         <button type="button" class="btn btn-coral" id="btnSpell">Spell</button>
         <div id="spellHeardWrap" class="spell-heard app-hidden" aria-live="polite">
           <span class="label">We heard</span>
@@ -539,7 +539,7 @@
         <li>Each <strong>round</strong> has 12 words: 10 regular and 2 brain-buster words.</li>
         <li>There are <strong>5 rounds</strong> until you have seen every word once.</li>
         <li><strong>Listen:</strong> Play reads the word twice. Listen again anytime—no penalty.</li>
-        <li><strong>Spell:</strong> Say the letters or words to spell it. You can try again with a lower point cap if you need to.</li>
+        <li><strong>Spell:</strong> Say the letters or words to spell it. Keep trying—your best score counts.</li>
         <li><strong>Pronounce:</strong> We show what was heard and how sure each guess is. Keep trying—your best score counts.</li>
         <li>Use <strong>Next word</strong> when you are done with all three steps. Your points jump up then!</li>
         <li>Chrome needs permission to use your <strong>microphone</strong>. Ask a grown-up if you are not sure.</li>
@@ -1266,22 +1266,8 @@
     } catch (e) { /* ignore */ }
   }
 
-  function canSpellAgain(w) {
-    if (w.spellAttempts.length === 0) return true;
-    if (w.spellAttempts.length >= 3) return false;
-    if (w.spellAttempts.length === 1) return w.spellAttempts[0].capped < 7;
-    if (w.spellAttempts.length === 2) return w.spellAttempts[1].capped < 4;
-    return false;
-  }
-
   function refreshSpellButton(w) {
     var btn = document.getElementById("btnSpell");
-    if (!canSpellAgain(w)) {
-      btn.disabled = true;
-      if (w.spellAttempts.length === 1) btn.textContent = "Super! Now pronounce";
-      else btn.textContent = "All spell tries used";
-      return;
-    }
     btn.disabled = false;
     btn.textContent = w.spellAttempts.length ? "Spell again" : "Spell";
   }
@@ -1302,14 +1288,13 @@
     runCapture("spell", "btnSpell", function (alts) {
       var attemptIndex = w.spellAttempts.length + 1;
       var raw = bestSpellScore(w.text, alts);
-      var cap = Infinity;
-      if (attemptIndex === 2) cap = 7;
-      if (attemptIndex === 3) cap = 4;
-      var capped = Math.min(cap, raw);
-      w.spellAttempts.push({ raw: raw, capped: capped, attemptIndex: attemptIndex });
+      w.spellAttempts.push({ raw: raw, capped: raw, attemptIndex: attemptIndex });
 
-      var display = capped;
-      document.getElementById("chipSpell").textContent = "+" + display;
+      var bestSpell = Math.max.apply(
+        null,
+        w.spellAttempts.map(function (a) { return a.capped; })
+      );
+      document.getElementById("chipSpell").textContent = "+" + bestSpell;
       document.getElementById("chipSpell").className = "chip pos";
 
       updateSpellHeardDisplay(alts);

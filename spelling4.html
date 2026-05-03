@@ -1174,7 +1174,7 @@
     var mergedBucket = new Map();
     var lastResultsRef = null;
     var spellFirstInterim = null;
-    var spellFinalConcat = "";
+    var spellFinalByIndex = new Map();
 
     rec.onresult = function (event) {
       lastResultsRef = event.results;
@@ -1182,10 +1182,10 @@
       mergeAlternativesFromResults(mergedBucket, event.results, event.resultIndex, mergeInterim);
       if (mode === "spell") {
         var ri;
-        for (ri = event.resultIndex; ri < event.results.length; ri++) {
+        for (ri = 0; ri < event.results.length; ri++) {
           var seg = event.results[ri];
           if (seg.isFinal) {
-            spellFinalConcat += seg[0].transcript;
+            spellFinalByIndex.set(ri, seg[0].transcript || "");
           }
         }
       }
@@ -1218,7 +1218,10 @@
 
       var alts = mapToAlternativeList(mergedBucket);
       if (mode === "spell") {
-        var concatTrim = spellFinalConcat.trim();
+        var concatParts = Array.from(spellFinalByIndex.entries())
+          .sort(function (a, b) { return a[0] - b[0]; })
+          .map(function (entry) { return entry[1]; });
+        var concatTrim = concatParts.join("").trim();
         if (concatTrim) {
           alts.unshift({ transcript: concatTrim, confidence: 1 });
         }
@@ -1235,7 +1238,7 @@
           "appCaptureMode is our label (spell vs pronounce), not a SpeechRecognition setting. " +
           "The Web Speech API has no built-in spell mode; Chrome uses one generic dictation model.",
         spellFirstInterimCaptured: mode === "spell" ? spellFirstInterim : undefined,
-        spellFinalConcatLikeChromeDemo: mode === "spell" ? spellFinalConcat.trim() : undefined,
+        spellFinalConcatLikeChromeDemo: mode === "spell" ? concatTrim : undefined,
         lastResultsSerialized: structured,
         mergedAlternativesUsedForScoring: alts,
         note:

@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spelling Bee Challenge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-top: #7c3aed;
+      --bg-bottom: #ec4899;
+      --card: #fffef8;
+      --card-shadow: rgba(91, 33, 182, 0.35);
+      --accent: #fbbf24;
+      --accent-dark: #d97706;
+      --mint: #34d399;
+      --coral: #fb7185;
+      --sky: #38bdf8;
+      --ink: #1e1b4b;
+      --muted: #64748b;
+      --radius: 20px;
+      --radius-sm: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: "Nunito", system-ui, sans-serif;
+      color: var(--ink);
+      background: linear-gradient(165deg, var(--bg-top) 0%, #a855f7 40%, var(--bg-bottom) 100%);
+      background-attachment: fixed;
+    }
+
+    body {
+      padding: 16px;
+      padding-bottom: 32px;
+    }
+
+    h1, h2, .font-display {
+      font-family: "Fredoka", "Nunito", sans-serif;
+    }
+
+    .app-hidden {
+      display: none !important;
+    }
+
+    #chromeOnly {
+      max-width: 520px;
+      margin: 48px auto;
+      background: var(--card);
+      padding: 32px;
+      border-radius: var(--radius);
+      text-align: center;
+      box-shadow: 0 16px 48px var(--card-shadow);
+    }
+
+    #chromeOnly h1 {
+      color: #b91c1c;
+      margin-top: 0;
+    }
+
+    #app {
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .hero-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      box-shadow: 0 12px 40px var(--card-shadow);
+      border: 4px solid #fde68a;
+    }
+
+    .hero-card h1 {
+      margin: 0 0 8px;
+      font-size: 1.85rem;
+      text-align: center;
+      color: #6d28d9;
+      line-height: 1.2;
+    }
+
+    .hero-card .tagline {
+      text-align: center;
+      color: var(--muted);
+      font-size: 1rem;
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      font-family: "Fredoka", sans-serif;
+      font-weight: 600;
+      font-size: 1.1rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 14px 22px;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 10px;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+      box-shadow: 0 4px 0 rgba(0, 0, 0, 0.15);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(180deg, #fcd34d 0%, var(--accent) 100%);
+      color: #78350f;
+    }
+
+    .btn-secondary {
+      background: linear-gradient(180deg, #a5f3fc 0%, var(--sky) 100%);
+      color: #0c4a6e;
+    }
+
+    .btn-mint {
+      background: linear-gradient(180deg, #6ee7b7 0%, var(--mint) 100%);
+      color: #064e3b;
+    }
+
+    .btn-coral {
+      background: linear-gradient(180deg, #fda4af 0%, var(--coral) 100%);
+      color: #881337;
+    }
+
+    .btn-play {
+      background: linear-gradient(180deg, #c4b5fd 0%, #8b5cf6 100%);
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-row .btn {
+      flex: 1;
+      margin-bottom: 0;
+    }
+
+    .round-header {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin-bottom: 14px;
+      box-shadow: 0 8px 28px var(--card-shadow);
+      border: 3px solid #a7f3d0;
+    }
+
+    .round-header .scores {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .round-header .big-score {
+      font-family: "Fredoka", sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #059669;
+    }
+
+    .round-header .meta {
+      font-size: 0.95rem;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .word-bubble {
+      text-align: center;
+      font-family: "Fredoka", sans-serif;
+      font-size: 1.1rem;
+      color: #7c3aed;
+      margin-top: 8px;
+    }
+
+    .section {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 8px 24px var(--card-shadow);
+      border: 3px solid transparent;
+    }
+
+    .section.listen { border-color: #c4b5fd; }
+    .section.spell { border-color: #93c5fd; }
+    .section.pronounce { border-color: #fca5a5; }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-family: "Fredoka", sans-serif;
+      color: #4c1d95;
+    }
+
+    .chip {
+      font-family: "Fredoka", sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .chip.neg {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .chip.pos {
+      background: #d1fae5;
+      color: #047857;
+    }
+
+    .chip:empty {
+      display: none;
+    }
+
+    .hint {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin: 0 0 12px;
+      line-height: 1.4;
+    }
+
+    dialog {
+      border: none;
+      border-radius: var(--radius);
+      padding: 0;
+      max-width: min(420px, 92vw);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    }
+
+    dialog::backdrop {
+      background: rgba(30, 27, 75, 0.55);
+    }
+
+    .dialog-inner {
+      padding: 24px;
+      background: var(--card);
+    }
+
+    .dialog-inner h2 {
+      margin: 0 0 12px;
+      font-family: "Fredoka", sans-serif;
+      color: #6d28d9;
+    }
+
+    .dialog-inner p, .dialog-inner li {
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: #334155;
+    }
+
+    .dialog-inner ul {
+      padding-left: 1.2rem;
+    }
+
+    .dialog-actions {
+      margin-top: 18px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .dialog-actions .btn {
+      width: auto;
+      margin: 0;
+      padding: 10px 20px;
+      font-size: 1rem;
+    }
+
+    .history {
+      margin-top: 18px;
+      padding: 16px;
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border-radius: var(--radius-sm);
+      border: 2px dashed #d97706;
+    }
+
+    .history h3 {
+      margin: 0 0 10px;
+      font-family: "Fredoka", sans-serif;
+      font-size: 1.1rem;
+      color: #92400e;
+    }
+
+    .history-item {
+      font-size: 0.9rem;
+      color: #78350f;
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    .stars {
+      font-size: 1.4rem;
+      letter-spacing: 4px;
+      text-align: center;
+      margin: 12px 0 0;
+    }
+
+    .footer-next {
+      margin-top: 8px;
+    }
+
+    .badge-difficult {
+      display: inline-block;
+      background: linear-gradient(90deg, #f97316, #ef4444);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 6px;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.04); }
+      100% { transform: scale(1); }
+    }
+
+    .btn:not(:disabled):hover {
+      animation: pop 0.35s ease;
+    }
+
+    .bee-rail {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      font-size: 1.75rem;
+      margin-bottom: 6px;
+      filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.08));
+    }
+
+    .spell-heard {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, #fce7f3 0%, #e9d5ff 100%);
+      border: 2px dashed #a855f7;
+      font-size: 0.95rem;
+      line-height: 1.45;
+      color: #581c87;
+    }
+
+    .spell-heard .label {
+      font-weight: 800;
+      font-family: "Fredoka", sans-serif;
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #7e22ce;
+    }
+
+    .spell-heard .heard-main {
+      font-size: 1.15rem;
+      font-weight: 800;
+      word-break: break-word;
+    }
+
+    .spell-heard .heard-alt {
+      margin-top: 8px;
+      font-size: 0.88rem;
+      color: #6b21a8;
+      opacity: 0.95;
+    }
+
+    .word-reveal {
+      margin-bottom: 14px;
+      padding: 18px 20px;
+      border-radius: var(--radius);
+      text-align: center;
+      background: linear-gradient(180deg, #fef9c3 0%, #fde047 100%);
+      border: 4px solid #f59e0b;
+      box-shadow: 0 8px 0 rgba(180, 83, 9, 0.25);
+    }
+
+    .word-reveal .label {
+      font-family: "Fredoka", sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #92400e;
+      margin-bottom: 6px;
+    }
+
+    .word-reveal .answer {
+      font-family: "Fredoka", sans-serif;
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: #78350f;
+      letter-spacing: 0.02em;
+    }
+  </style>
+</head>
+<body>
+  <div id="chromeOnly" class="app-hidden">
+    <h1>Oops!</h1>
+    <p>This spelling bee works best in <strong>Google Chrome</strong> on a computer or Chromebook. Please open this page in Chrome to play.</p>
+  </div>
+
+  <div id="app" class="app-hidden">
+    <div id="viewHome">
+      <div class="hero-card">
+        <div class="bee-rail" aria-hidden="true">🌟 🐝 ✨</div>
+        <h1>Spelling Bee Challenge</h1>
+        <p class="tagline">Listen, spell, and say it out loud. Collect points and finish all 5 rounds!</p>
+        <button type="button" class="btn btn-secondary" id="btnInstructions">How to play</button>
+        <button type="button" class="btn btn-primary" id="btnStartRound">Start a round</button>
+        <div class="btn-row">
+          <button type="button" class="btn btn-mint" id="btnReset" style="font-size:0.95rem">Reset all progress</button>
+        </div>
+        <p id="homeNoWords" class="hint app-hidden">You have used every word. Reset progress to play again.</p>
+        <div id="homeHistory" class="history app-hidden"></div>
+      </div>
+    </div>
+
+    <div id="viewRound" class="app-hidden">
+      <div class="round-header">
+        <div class="scores">
+          <span class="big-score" id="lblGrandTotal">0 pts</span>
+          <span class="meta" id="lblRoundProgress">Round · 1 / 12</span>
+        </div>
+        <div class="word-bubble" id="lblWordKind"></div>
+      </div>
+
+      <div class="section listen">
+        <div class="section-head">
+          <h2>Listen</h2>
+          <span class="chip neg" id="chipListen"></span>
+        </div>
+        <p class="hint">Tap Play to hear the word <strong>two times</strong> (with a short pause). Extra plays cost 5 points each.</p>
+        <button type="button" class="btn btn-play" id="btnPlay">Play word</button>
+      </div>
+
+      <div class="section spell app-hidden" id="secSpell">
+        <div class="section-head">
+          <h2>Spell</h2>
+          <span class="chip pos" id="chipSpell"></span>
+        </div>
+        <p class="hint">Spell the word out loud. Tap Spell to start listening, then tap <strong>Stop</strong> when you are done.</p>
+        <button type="button" class="btn btn-coral" id="btnSpell">Spell</button>
+        <div id="spellHeardWrap" class="spell-heard app-hidden" aria-live="polite">
+          <span class="label">We heard</span>
+          <div class="heard-main" id="spellHeardMain"></div>
+          <div class="heard-alt" id="spellHeardAlt"></div>
+        </div>
+      </div>
+
+      <div class="section pronounce app-hidden" id="secPronounce">
+        <div class="section-head">
+          <h2>Pronounce</h2>
+          <span class="chip pos" id="chipPronounce"></span>
+        </div>
+        <p class="hint">Say the whole word clearly. Tap Pronounce to start, then <strong>Stop</strong> when finished.</p>
+        <button type="button" class="btn btn-mint" id="btnPronounce">Pronounce</button>
+      </div>
+
+      <div id="wordRevealWrap" class="word-reveal app-hidden" aria-live="polite">
+        <div class="label">The word is</div>
+        <div class="answer" id="wordRevealText"></div>
+      </div>
+
+      <div class="footer-next">
+        <button type="button" class="btn btn-primary" id="btnNext" disabled>Next word</button>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="dlgInstructions">
+    <div class="dialog-inner">
+      <h2>How to play</h2>
+      <ul>
+        <li>Each <strong>round</strong> has 12 words: 10 regular and 2 brain-buster words.</li>
+        <li>There are <strong>5 rounds</strong> until you have seen every word once.</li>
+        <li><strong>Listen:</strong> Play plays the word twice. Extra plays lose 5 points each.</li>
+        <li><strong>Spell:</strong> Say the letters or words to spell it. You can try again with a lower point cap if you need to.</li>
+        <li><strong>Pronounce:</strong> Say the whole word. Chrome listens and scores how confident it is.</li>
+        <li>Use <strong>Next word</strong> when you are done with all three steps. Your points jump up then!</li>
+        <li>Chrome needs permission to use your <strong>microphone</strong>. Ask a grown-up if you are not sure.</li>
+      </ul>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" data-close-dialog>Got it!</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="dlgMicHelp">
+    <div class="dialog-inner">
+      <h2 id="dlgMicTitle">Microphone</h2>
+      <p id="dlgMicBody"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" data-close-dialog>OK</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="dlgTtsHelp">
+    <div class="dialog-inner">
+      <h2>Sound</h2>
+      <p>Your browser could not read the word out loud. Check that sound is on, then tap Play again.</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" data-close-dialog>OK</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "spellingBeeKidV1";
+
+  var REGULAR_WORDS = [
+    "bigger", "younger", "stronger", "wavy", "curly", "blond", "straight", "glasses",
+    "cucumber", "cabbage", "grow", "relatives", "dig", "plant", "water", "weed", "pick",
+    "pumpkin", "eggplant", "onion", "green beans", "lettuce", "different", "twice", "once",
+    "every day", "indoor", "ripe", "wash", "learn", "chores", "spend", "life", "smarter",
+    "make", "town", "cell phones", "things", "begin", "fire", "tell", "sew", "modern",
+    "difficult", "taller", "expensive", "shorter", "slower", "faster", "older"
+  ];
+
+  var DIFFICULT_WORDS = [
+    "friendlier", "mouthpiece", "inherit", "unattached", "zucchini", "advantage",
+    "usually", "sometimes", "daylight", "instead"
+  ];
+
+  function isGoogleChrome() {
+    var ua = navigator.userAgent;
+    if (!/Chrome/.test(ua)) return false;
+    if (/Edg|OPR|Opera|Brave/i.test(ua)) return false;
+    if (typeof window.chrome === "undefined") return false;
+    return true;
+  }
+
+  function hasSpeechApis() {
+    return "speechSynthesis" in window &&
+      ("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
+  }
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultState();
+      var o = JSON.parse(raw);
+      if (!o || !Array.isArray(o.used)) o = defaultState();
+      if (!Array.isArray(o.rounds)) o.rounds = [];
+      return o;
+    } catch (e) {
+      return defaultState();
+    }
+  }
+
+  function defaultState() {
+    return { used: [], rounds: [] };
+  }
+
+  function saveState(state) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function normalizeText(s) {
+    return String(s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function levenshtein(a, b) {
+    var i, j, row, prev;
+    if (a === b) return 0;
+    var la = a.length, lb = b.length;
+    if (!la) return lb;
+    if (!lb) return la;
+    prev = new Array(lb + 1);
+    for (j = 0; j <= lb; j++) prev[j] = j;
+    for (i = 1; i <= la; i++) {
+      row = new Array(lb + 1);
+      row[0] = i;
+      for (j = 1; j <= lb; j++) {
+        var cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+        row[j] = Math.min(
+          prev[j] + 1,
+          row[j - 1] + 1,
+          prev[j - 1] + cost
+        );
+      }
+      prev = row;
+    }
+    return prev[lb];
+  }
+
+  function spellScoreForCandidate(expectedNorm, candNorm) {
+    if (!candNorm) return 0;
+    var d = levenshtein(expectedNorm, candNorm);
+    return Math.max(0, 10 - d);
+  }
+
+  function collectAlternativesFromResults(results) {
+    var list = [];
+    var ri, ai, res, alt;
+    for (ri = 0; ri < results.length; ri++) {
+      res = results[ri];
+      for (ai = 0; ai < res.length; ai++) {
+        alt = res[ai];
+        list.push({
+          transcript: alt.transcript,
+          confidence: typeof alt.confidence === "number" ? alt.confidence : 0
+        });
+      }
+    }
+    return list;
+  }
+
+  function serializeResultsSnapshot(results) {
+    var structured = [];
+    var i, j, res, a;
+    for (i = 0; i < results.length; i++) {
+      res = results[i];
+      var row = { isFinal: !!res.isFinal, alternatives: [] };
+      for (j = 0; j < res.length; j++) {
+        a = res[j];
+        row.alternatives.push({
+          transcript: a.transcript,
+          confidence: a.confidence
+        });
+      }
+      structured.push(row);
+    }
+    return structured;
+  }
+
+  function mergeAlternativesFromResults(bucket, results, fromIndex, includeInterim) {
+    var i, j, res, alt, tr, conf, prev;
+    for (i = fromIndex; i < results.length; i++) {
+      res = results[i];
+      if (!includeInterim && !res.isFinal) continue;
+      for (j = 0; j < res.length; j++) {
+        alt = res[j];
+        tr = alt.transcript;
+        conf = typeof alt.confidence === "number" ? alt.confidence : 0;
+        prev = bucket.get(tr);
+        if (prev === undefined || conf > prev) bucket.set(tr, conf);
+      }
+    }
+  }
+
+  function mapToAlternativeList(bucket) {
+    var out = [];
+    bucket.forEach(function (conf, transcript) {
+      out.push({ transcript: transcript, confidence: conf });
+    });
+    return out;
+  }
+
+  function logStt(kind, eventOrPayload) {
+    if (kind === "spell") {
+      console.log("[Spell STT] SpeechRecognition results:", eventOrPayload);
+    } else {
+      console.log("[Pronounce STT] SpeechRecognition results:", eventOrPayload);
+    }
+  }
+
+  function parseSpellCandidates(transcript) {
+    var norm = normalizeText(transcript);
+    if (!norm) return [];
+    var cands = new Set();
+    cands.add(norm);
+    var parts = norm.split(" ");
+    if (parts.length > 1) {
+      cands.add(parts.join(""));
+      cands.add(parts.filter(Boolean).join(" "));
+    }
+    return Array.from(cands);
+  }
+
+  function bestSpellScore(expected, alternatives) {
+    var expectedNorm = normalizeText(expected);
+    var best = 0;
+    var t, cands, ci, sc, alts, ai;
+    for (ai = 0; ai < alternatives.length; ai++) {
+      t = alternatives[ai].transcript;
+      cands = parseSpellCandidates(t);
+      for (ci = 0; ci < cands.length; ci++) {
+        sc = spellScoreForCandidate(expectedNorm, cands[ci]);
+        if (sc > best) best = sc;
+      }
+    }
+    return best;
+  }
+
+  function bestPronounceScore(expected, alternatives) {
+    var expectedNorm = normalizeText(expected);
+    var bestConf = -1;
+    var ai, alt, n;
+    for (ai = 0; ai < alternatives.length; ai++) {
+      alt = alternatives[ai];
+      n = normalizeText(alt.transcript);
+      if (n === expectedNorm) {
+        if (alt.confidence > bestConf) bestConf = alt.confidence;
+      }
+    }
+    if (bestConf < 0) return { points: 0, confidence: 0 };
+    return {
+      points: Math.max(0, Math.min(10, Math.ceil(bestConf * 10))),
+      confidence: bestConf
+    };
+  }
+
+  function shuffle(arr) {
+    var a = arr.slice(), i, j, t;
+    for (i = a.length - 1; i > 0; i--) {
+      j = Math.floor(Math.random() * (i + 1));
+      t = a[i];
+      a[i] = a[j];
+      a[j] = t;
+    }
+    return a;
+  }
+
+  function buildRoundWords(state) {
+    var used = new Set(state.used);
+    var regLeft = REGULAR_WORDS.filter(function (w) { return !used.has(w); });
+    var difLeft = DIFFICULT_WORDS.filter(function (w) { return !used.has(w); });
+    if (regLeft.length < 10 || difLeft.length < 2) return null;
+
+    var pickReg = shuffle(regLeft).slice(0, 10);
+    var pickDif = shuffle(difLeft).slice(0, 2);
+    var combined = pickReg.map(function (w) { return { word: w, difficult: false }; })
+      .concat(pickDif.map(function (w) { return { word: w, difficult: true }; }));
+    return shuffle(combined);
+  }
+
+  var state = loadState();
+  var chromeOk = isGoogleChrome() && hasSpeechApis();
+
+  var elChrome = document.getElementById("chromeOnly");
+  var elApp = document.getElementById("app");
+  var viewHome = document.getElementById("viewHome");
+  var viewRound = document.getElementById("viewRound");
+  var dlgInstructions = document.getElementById("dlgInstructions");
+  var dlgMicHelp = document.getElementById("dlgMicHelp");
+  var dlgMicTitle = document.getElementById("dlgMicTitle");
+  var dlgMicBody = document.getElementById("dlgMicBody");
+  var dlgTtsHelp = document.getElementById("dlgTtsHelp");
+
+  if (!chromeOk) {
+    elChrome.classList.remove("app-hidden");
+  } else {
+    elApp.classList.remove("app-hidden");
+    if (window.speechSynthesis) {
+      speechSynthesis.getVoices();
+      speechSynthesis.addEventListener("voiceschanged", function () {
+        speechSynthesis.getVoices();
+      });
+    }
+  }
+
+  var round = null;
+
+  function openDialog(d) {
+    if (d && typeof d.showModal === "function") d.showModal();
+  }
+
+  function closeDialog(d) {
+    if (d && typeof d.close === "function") d.close();
+  }
+
+  document.querySelectorAll("[data-close-dialog]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var d = b.closest("dialog");
+      if (d) closeDialog(d);
+    });
+  });
+
+  function grandTotalCommitted() {
+    var sum = 0;
+    state.rounds.forEach(function (r) {
+      sum += r.totalPoints || 0;
+    });
+    return sum;
+  }
+
+  function renderHome() {
+    var btnStart = document.getElementById("btnStartRound");
+    var homeNo = document.getElementById("homeNoWords");
+    var hist = document.getElementById("homeHistory");
+    var can = buildRoundWords(state) !== null;
+    btnStart.disabled = !can;
+    homeNo.classList.toggle("app-hidden", can);
+
+    if (state.rounds.length) {
+      hist.classList.remove("app-hidden");
+      hist.innerHTML = "<h3>Your adventure so far</h3>" +
+        state.rounds.map(function (r, idx) {
+          return "<div class=\"history-item\">Round " + (idx + 1) + " — " +
+            (r.totalPoints || 0) + " points</div>";
+        }).join("") +
+        "<p style=\"margin:12px 0 0;font-weight:800;color:#92400e;\">" +
+        (can
+          ? "Keep going! Finish all 5 rounds to master every word."
+          : "Amazing! You finished every word in the list!") +
+        "</p>";
+    } else {
+      hist.classList.add("app-hidden");
+    }
+  }
+
+  function startRound() {
+    var words = buildRoundWords(state);
+    if (!words) return;
+    round = {
+      words: words,
+      index: 0,
+      roundPointsBuffer: 0,
+      word: null
+    };
+    viewHome.classList.add("app-hidden");
+    viewRound.classList.remove("app-hidden");
+    setupWord();
+    updateRoundChrome();
+  }
+
+  function setupWord() {
+    var w = round.words[round.index];
+    round.word = {
+      text: w.word,
+      difficult: w.difficult,
+      playClicks: 0,
+      listenDoneOnce: false,
+      ttsPending: false,
+      listenPenalty: 0,
+      spellAttempts: [],
+      pronounceAttempts: [],
+      spellCapturing: false,
+      pronounceCapturing: false,
+      recognition: null
+    };
+    document.getElementById("chipListen").textContent = "";
+    document.getElementById("chipListen").className = "chip neg";
+    document.getElementById("chipSpell").textContent = "";
+    document.getElementById("chipSpell").className = "chip pos";
+    document.getElementById("chipPronounce").textContent = "";
+    document.getElementById("chipPronounce").className = "chip pos";
+
+    document.getElementById("secSpell").classList.add("app-hidden");
+    document.getElementById("secPronounce").classList.add("app-hidden");
+    document.getElementById("btnSpell").textContent = "Spell";
+    document.getElementById("btnSpell").disabled = false;
+    document.getElementById("btnPronounce").textContent = "Pronounce";
+    document.getElementById("btnPronounce").disabled = false;
+    document.getElementById("btnNext").disabled = true;
+    document.getElementById("wordRevealWrap").classList.add("app-hidden");
+    document.getElementById("wordRevealText").textContent = "";
+    hideSpellHeard();
+
+    var kind = document.getElementById("lblWordKind");
+    kind.innerHTML = w.difficult
+      ? "Super word <span class=\"badge-difficult\">HARD</span>"
+      : "Practice word";
+
+    updateRoundChrome();
+  }
+
+  function updateRoundChrome() {
+    var committed = grandTotalCommitted() + (round ? round.roundPointsBuffer : 0);
+    document.getElementById("lblGrandTotal").textContent = committed + " pts";
+    var idx = round ? round.index + 1 : 0;
+    var rn = round ? state.rounds.length + 1 : 0;
+    document.getElementById("lblRoundProgress").textContent =
+      "Round " + rn + " · Word " + idx + " / 12";
+  }
+
+  function speakTwice(text, onAllDone, onError) {
+    speechSynthesis.cancel();
+    var u1 = new SpeechSynthesisUtterance(text);
+    u1.rate = 0.92;
+    u1.lang = "en-US";
+    u1.onerror = function () {
+      if (onError) onError();
+    };
+    u1.onend = function () {
+      setTimeout(function () {
+        var u2 = new SpeechSynthesisUtterance(text);
+        u2.rate = 0.92;
+        u2.lang = "en-US";
+        u2.onerror = function () {
+          if (onError) onError();
+        };
+        u2.onend = function () {
+          if (onAllDone) onAllDone();
+        };
+        speechSynthesis.speak(u2);
+      }, 1000);
+    };
+    speechSynthesis.speak(u1);
+  }
+
+  function applyListenChip() {
+    var w = round.word;
+    var chip = document.getElementById("chipListen");
+    var pen = w.listenPenalty;
+    if (w.playClicks <= 1) {
+      chip.textContent = "";
+      return;
+    }
+    chip.textContent = pen < 0 ? String(pen) : "";
+    chip.className = "chip neg";
+  }
+
+  function updateWordReveal() {
+    var wrap = document.getElementById("wordRevealWrap");
+    var btn = document.getElementById("btnNext");
+    if (!round || !round.word) {
+      wrap.classList.add("app-hidden");
+      return;
+    }
+    if (!btn.disabled) {
+      document.getElementById("wordRevealText").textContent = round.word.text;
+      wrap.classList.remove("app-hidden");
+    } else {
+      wrap.classList.add("app-hidden");
+    }
+  }
+
+  function updateSpellHeardDisplay(alts) {
+    var wrap = document.getElementById("spellHeardWrap");
+    var main = document.getElementById("spellHeardMain");
+    var altEl = document.getElementById("spellHeardAlt");
+    wrap.classList.remove("app-hidden");
+    if (!alts || !alts.length) {
+      main.textContent = "…nothing clear yet. Try Spell again!";
+      altEl.textContent = "";
+      return;
+    }
+    var sorted = alts.slice().sort(function (a, b) {
+      return (b.confidence || 0) - (a.confidence || 0);
+    });
+    var top = sorted[0];
+    var topText = (top.transcript || "").trim();
+    main.textContent = topText || "…nothing clear yet. Try Spell again!";
+    var rest = [];
+    var i, t;
+    for (i = 1; i < sorted.length && rest.length < 6; i++) {
+      t = (sorted[i].transcript || "").trim();
+      if (t && rest.indexOf(t) === -1 && t !== topText) rest.push(t);
+    }
+    altEl.textContent = rest.length ? "Other guesses Chrome had: " + rest.join(" · ") : "";
+  }
+
+  function hideSpellHeard() {
+    document.getElementById("spellHeardWrap").classList.add("app-hidden");
+    document.getElementById("spellHeardMain").textContent = "";
+    document.getElementById("spellHeardAlt").textContent = "";
+  }
+
+  function maybeUnlockNext() {
+    var w = round.word;
+    var ok = w.listenDoneOnce &&
+      w.spellAttempts.length > 0 &&
+      w.pronounceAttempts.length > 0;
+    var btn = document.getElementById("btnNext");
+    btn.disabled = !ok;
+    if (round.index === round.words.length - 1) {
+      btn.textContent = "Finish round";
+    } else {
+      btn.textContent = "Next word";
+    }
+    updateWordReveal();
+  }
+
+  document.getElementById("btnInstructions").addEventListener("click", function () {
+    openDialog(dlgInstructions);
+  });
+
+  document.getElementById("btnReset").addEventListener("click", function () {
+    if (confirm("Reset all progress? This cannot be undone.")) {
+      state = defaultState();
+      saveState(state);
+      renderHome();
+    }
+  });
+
+  document.getElementById("btnStartRound").addEventListener("click", function () {
+    startRound();
+  });
+
+  document.getElementById("btnPlay").addEventListener("click", function () {
+    if (!round || !round.word) return;
+    var w = round.word;
+    if (w.ttsPending) return;
+
+    warmSpeechEngines();
+
+    w.playClicks += 1;
+    if (w.playClicks > 1) {
+      w.listenPenalty -= 5;
+    }
+    applyListenChip();
+
+    w.ttsPending = true;
+    document.getElementById("btnPlay").disabled = true;
+
+    speakTwice(w.text, function () {
+      w.ttsPending = false;
+      w.listenDoneOnce = true;
+      document.getElementById("btnPlay").disabled = false;
+      document.getElementById("secSpell").classList.remove("app-hidden");
+    }, function () {
+      w.ttsPending = false;
+      document.getElementById("btnPlay").disabled = false;
+      openDialog(dlgTtsHelp);
+    });
+  });
+
+  function makeRecognition() {
+    var Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    return new Ctor();
+  }
+
+  function showMicError(err) {
+    var title = "Microphone";
+    var body = "Something went wrong with the microphone.";
+    if (err === "not-allowed" || err === "service-not-allowed") {
+      title = "Permission needed";
+      body = "Chrome needs permission to use the microphone. Click the lock icon in the address bar, allow the microphone, and try again.";
+    } else if (err === "audio-capture") {
+      title = "No microphone";
+      body = "Chrome could not hear anything. Check that a microphone is plugged in and working.";
+    } else if (err === "no-speech") {
+      title = "No speech heard";
+      body = "Chrome did not catch speech. Try again a little closer to the microphone.";
+    }
+    dlgMicTitle.textContent = title;
+    dlgMicBody.textContent = body;
+    openDialog(dlgMicHelp);
+  }
+
+  function runCapture(mode, btnId, onGraded) {
+    var w = round.word;
+    var btn = document.getElementById(btnId);
+    var rec = makeRecognition();
+    rec.lang = "en-US";
+    rec.interimResults = true;
+    rec.continuous = true;
+    rec.maxAlternatives = 25;
+
+    var mergedBucket = new Map();
+    var lastResultsRef = null;
+
+    rec.onresult = function (event) {
+      lastResultsRef = event.results;
+      mergeAlternativesFromResults(mergedBucket, event.results, event.resultIndex, false);
+      var snap = serializeResultsSnapshot(event.results);
+      var tag = mode === "spell" ? "[Spell STT]" : "[Pronounce STT]";
+      console.log(tag + " onresult (incremental)", {
+        resultIndex: event.resultIndex,
+        resultsLength: event.results.length,
+        snapshot: snap
+      });
+    };
+
+    rec.onerror = function (event) {
+      console.warn("[STT error]", mode, event.error, event);
+      showMicError(event.error);
+    };
+
+    rec.onend = function () {
+      btn.textContent = mode === "spell" ? "Spell" : "Pronounce";
+      if (mode === "spell") w.spellCapturing = false;
+      else w.pronounceCapturing = false;
+
+      if (mergedBucket.size === 0 && lastResultsRef && lastResultsRef.length) {
+        mergeAlternativesFromResults(mergedBucket, lastResultsRef, 0, true);
+      }
+
+      var alts = mapToAlternativeList(mergedBucket);
+      var structured = lastResultsRef && lastResultsRef.length
+        ? serializeResultsSnapshot(lastResultsRef)
+        : [];
+
+      logStt(mode, {
+        phase: "session_end",
+        mode: mode,
+        lastResultsSerialized: structured,
+        mergedAlternativesUsedForScoring: alts,
+        note: "Prefers final hypotheses; if none, falls back to last interim snapshots for debugging and scoring."
+      });
+
+      onGraded(alts);
+    };
+
+    if (mode === "spell") {
+      w.spellCapturing = true;
+      w.recognition = rec;
+    } else {
+      w.pronounceCapturing = true;
+      w.recognition = rec;
+    }
+    btn.textContent = "Stop";
+    try {
+      rec.start();
+    } catch (e) {
+      console.warn(e);
+      btn.textContent = mode === "spell" ? "Spell" : "Pronounce";
+      if (mode === "spell") w.spellCapturing = false;
+      else w.pronounceCapturing = false;
+    }
+  }
+
+  function warmSpeechEngines() {
+    try {
+      if (window.speechSynthesis) speechSynthesis.getVoices();
+    } catch (e) { /* ignore */ }
+  }
+
+  function canSpellAgain(w) {
+    if (w.spellAttempts.length === 0) return true;
+    if (w.spellAttempts.length >= 3) return false;
+    if (w.spellAttempts.length === 1) return w.spellAttempts[0].capped < 7;
+    if (w.spellAttempts.length === 2) return w.spellAttempts[1].capped < 4;
+    return false;
+  }
+
+  function refreshSpellButton(w) {
+    var btn = document.getElementById("btnSpell");
+    if (!canSpellAgain(w)) {
+      btn.disabled = true;
+      if (w.spellAttempts.length === 1) btn.textContent = "Super! Now pronounce";
+      else btn.textContent = "All spell tries used";
+      return;
+    }
+    btn.disabled = false;
+    btn.textContent = w.spellAttempts.length ? "Spell again" : "Spell";
+  }
+
+  function refreshPronounceButton(w) {
+    var btn = document.getElementById("btnPronounce");
+    if (w.pronounceAttempts.length >= 5) {
+      btn.disabled = true;
+      btn.textContent = "Great job!";
+      return;
+    }
+    btn.disabled = false;
+    btn.textContent = w.pronounceAttempts.length ? "Pronounce again" : "Pronounce";
+  }
+
+  document.getElementById("btnSpell").addEventListener("click", function () {
+    if (!round || !round.word || !round.word.listenDoneOnce) return;
+    var w = round.word;
+    if (w.spellCapturing) {
+      w.recognition.stop();
+      return;
+    }
+    runCapture("spell", "btnSpell", function (alts) {
+      var attemptIndex = w.spellAttempts.length + 1;
+      var raw = bestSpellScore(w.text, alts);
+      var cap = Infinity;
+      if (attemptIndex === 2) cap = 7;
+      if (attemptIndex === 3) cap = 4;
+      var capped = Math.min(cap, raw);
+      w.spellAttempts.push({ raw: raw, capped: capped, attemptIndex: attemptIndex });
+
+      var display = capped;
+      document.getElementById("chipSpell").textContent = "+" + display;
+      document.getElementById("chipSpell").className = "chip pos";
+
+      updateSpellHeardDisplay(alts);
+
+      refreshSpellButton(w);
+
+      document.getElementById("secPronounce").classList.remove("app-hidden");
+      maybeUnlockNext();
+    });
+  });
+
+  document.getElementById("btnPronounce").addEventListener("click", function () {
+    if (!round || !round.word) return;
+    var w = round.word;
+    if (!w.spellAttempts.length) return;
+    if (w.pronounceCapturing) {
+      w.recognition.stop();
+      return;
+    }
+
+    var caps = [Infinity, 8, 6, 4, 2];
+    runCapture("pronounce", "btnPronounce", function (alts) {
+      var attemptIndex = w.pronounceAttempts.length + 1;
+      var pr = bestPronounceScore(w.text, alts);
+      var cap = caps[Math.min(attemptIndex - 1, caps.length - 1)];
+      var capped = Math.min(cap, pr.points);
+      w.pronounceAttempts.push({
+        rawPoints: pr.points,
+        confidence: pr.confidence,
+        capped: capped,
+        attemptIndex: attemptIndex
+      });
+
+      document.getElementById("chipPronounce").textContent = "+" + capped;
+      document.getElementById("chipPronounce").className = "chip pos";
+
+      refreshPronounceButton(w);
+
+      maybeUnlockNext();
+    });
+  });
+
+  function wordCommittedPoints() {
+    var w = round.word;
+    var listen = w.listenPenalty;
+    var spell = Math.max.apply(null, w.spellAttempts.map(function (a) { return a.capped; }).concat([0]));
+    var pron = Math.max.apply(null, w.pronounceAttempts.map(function (a) { return a.capped; }).concat([0]));
+    return listen + spell + pron;
+  }
+
+  document.getElementById("btnNext").addEventListener("click", function () {
+    if (!round) return;
+    var pts = wordCommittedPoints();
+    round.roundPointsBuffer += pts;
+
+    var used = new Set(state.used);
+    used.add(round.word.text);
+    state.used = Array.from(used);
+    saveState(state);
+
+    round.index += 1;
+    if (round.index >= round.words.length) {
+      var roundRec = {
+        totalPoints: round.roundPointsBuffer,
+        words: round.words.map(function (x) { return x.word; })
+      };
+      state.rounds.push(roundRec);
+      saveState(state);
+      round = null;
+      viewRound.classList.add("app-hidden");
+      viewHome.classList.remove("app-hidden");
+      renderHome();
+      return;
+    }
+
+    setupWord();
+    updateRoundChrome();
+  });
+
+  renderHome();
+})();
+  </script>
+</body>
+</html>

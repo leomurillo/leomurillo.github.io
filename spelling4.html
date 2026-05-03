@@ -658,7 +658,12 @@
 
   function spellScoreForCandidate(expectedNorm, candNorm) {
     if (!candNorm) return 0;
-    var d = levenshtein(expectedNorm, candNorm);
+    // Ignore spaces on both sides so multi-word bank entries (e.g. "cell phones")
+    // match letter-by-letter STT ("c e l l p h o n e s" / "cellphones") without a penalty.
+    var expKey = String(expectedNorm || "").replace(/\s+/g, "");
+    var candKey = String(candNorm).replace(/\s+/g, "");
+    if (!candKey || !expKey) return 0;
+    var d = levenshtein(expKey, candKey);
     return Math.max(0, 10 - d);
   }
 

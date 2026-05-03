@@ -391,11 +391,42 @@
       word-break: break-word;
     }
 
-    .spell-heard .heard-alt {
-      margin-top: 8px;
-      font-size: 0.88rem;
-      color: #6b21a8;
-      opacity: 0.95;
+    .pronounce-alts {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, #ccfbf1 0%, #a5f3fc 100%);
+      border: 2px dashed #0d9488;
+      font-size: 0.92rem;
+      line-height: 1.45;
+      color: #134e4a;
+    }
+
+    .pronounce-alts .label {
+      font-weight: 800;
+      font-family: "Fredoka", sans-serif;
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #0f766e;
+    }
+
+    .pronounce-alts ul {
+      margin: 0;
+      padding: 0 0 0 1.1rem;
+    }
+
+    .pronounce-alts li {
+      margin-bottom: 6px;
+      font-weight: 700;
+      word-break: break-word;
+    }
+
+    .pronounce-alts .pct {
+      font-weight: 800;
+      color: #0e7490;
     }
 
     .word-reveal {
@@ -459,9 +490,8 @@
       <div class="section listen">
         <div class="section-head">
           <h2>Listen</h2>
-          <span class="chip neg" id="chipListen"></span>
         </div>
-        <p class="hint">Tap Play to hear the word <strong>two times</strong> (with a short pause). Extra plays cost 5 points each.</p>
+        <p class="hint">Tap Play to hear the word <strong>two times</strong> (with a short pause). Play again anytime—no points lost.</p>
         <button type="button" class="btn btn-play" id="btnPlay">Play word</button>
       </div>
 
@@ -475,7 +505,6 @@
         <div id="spellHeardWrap" class="spell-heard app-hidden" aria-live="polite">
           <span class="label">We heard</span>
           <div class="heard-main" id="spellHeardMain"></div>
-          <div class="heard-alt" id="spellHeardAlt"></div>
         </div>
       </div>
 
@@ -484,8 +513,12 @@
           <h2>Pronounce</h2>
           <span class="chip pos" id="chipPronounce"></span>
         </div>
-        <p class="hint">Say the whole word clearly. Tap Pronounce to start, then <strong>Stop</strong> when finished.</p>
+        <p class="hint">Say the whole word clearly. Tap Pronounce to start, then <strong>Stop</strong> when finished. Try as many times as you like—your <strong>best</strong> score counts.</p>
         <button type="button" class="btn btn-mint" id="btnPronounce">Pronounce</button>
+        <div id="pronounceAltsWrap" class="pronounce-alts app-hidden" aria-live="polite">
+          <span class="label">What we heard (highest confidence first)</span>
+          <ul id="pronounceAltsList"></ul>
+        </div>
       </div>
 
       <div id="wordRevealWrap" class="word-reveal app-hidden" aria-live="polite">
@@ -505,9 +538,9 @@
       <ul>
         <li>Each <strong>round</strong> has 12 words: 10 regular and 2 brain-buster words.</li>
         <li>There are <strong>5 rounds</strong> until you have seen every word once.</li>
-        <li><strong>Listen:</strong> Play plays the word twice. Extra plays lose 5 points each.</li>
+        <li><strong>Listen:</strong> Play reads the word twice. Listen again anytime—no penalty.</li>
         <li><strong>Spell:</strong> Say the letters or words to spell it. You can try again with a lower point cap if you need to.</li>
-        <li><strong>Pronounce:</strong> Say the whole word. Chrome listens and scores how confident it is.</li>
+        <li><strong>Pronounce:</strong> We show what was heard and how sure each guess is. Keep trying—your best score counts.</li>
         <li>Use <strong>Next word</strong> when you are done with all three steps. Your points jump up then!</li>
         <li>Chrome needs permission to use your <strong>microphone</strong>. Ask a grown-up if you are not sure.</li>
       </ul>
@@ -686,6 +719,52 @@
     return out;
   }
 
+  /**
+   * Chrome often drops the very first letter in the *final* spell hypothesis while
+   * it still appeared in early interims (e.g. "B" then finals "e g i n"). Stitch
+   * plausible repairs so scoring and "We heard" can see "begin".
+   */
+  function augmentSpellAlternatives(alts, firstInterimTrimmed) {
+    if (!firstInterimTrimmed) return alts.slice();
+    var leadRaw = firstInterimTrimmed.trim();
+    if (!leadRaw) return alts.slice();
+    var leadKey = normalizeText(leadRaw).replace(/\s+/g, "");
+    if (!leadKey || leadKey.length > 4) return alts.slice();
+
+    var out = alts.slice();
+    var seen = new Set();
+    out.forEach(function (x) {
+      seen.add((x.transcript || "").trim());
+    });
+
+    alts.forEach(function (a) {
+      var body = (a.transcript || "").trim();
+      if (!body) return;
+      var bodyNorm = normalizeText(body).replace(/\s+/g, "");
+      if (!bodyNorm) return;
+      if (bodyNorm.charAt(0) === leadKey.charAt(0)) return;
+
+      var cbase = typeof a.confidence === "number" ? a.confidence : 0;
+      var variants = [
+        leadRaw + " " + body,
+        leadRaw + body,
+        leadKey + " " + body,
+        leadKey + bodyNorm
+      ];
+      var idx;
+      for (idx = 0; idx < variants.length; idx++) {
+        var t = variants[idx].trim();
+        if (!t || seen.has(t)) continue;
+        seen.add(t);
+        out.push({
+          transcript: t,
+          confidence: cbase * (0.88 - idx * 0.03)
+        });
+      }
+    });
+    return out;
+  }
+
   function logStt(kind, eventOrPayload) {
     if (kind === "spell") {
       console.log("[Spell STT] SpeechRecognition results:", eventOrPayload);
@@ -859,18 +938,14 @@
     round.word = {
       text: w.word,
       difficult: w.difficult,
-      playClicks: 0,
       listenDoneOnce: false,
       ttsPending: false,
-      listenPenalty: 0,
       spellAttempts: [],
       pronounceAttempts: [],
       spellCapturing: false,
       pronounceCapturing: false,
       recognition: null
     };
-    document.getElementById("chipListen").textContent = "";
-    document.getElementById("chipListen").className = "chip neg";
     document.getElementById("chipSpell").textContent = "";
     document.getElementById("chipSpell").className = "chip pos";
     document.getElementById("chipPronounce").textContent = "";
@@ -886,6 +961,7 @@
     document.getElementById("wordRevealWrap").classList.add("app-hidden");
     document.getElementById("wordRevealText").textContent = "";
     hideSpellHeard();
+    hidePronounceAlts();
 
     var kind = document.getElementById("lblWordKind");
     kind.innerHTML = w.difficult
@@ -929,18 +1005,6 @@
     speechSynthesis.speak(u1);
   }
 
-  function applyListenChip() {
-    var w = round.word;
-    var chip = document.getElementById("chipListen");
-    var pen = w.listenPenalty;
-    if (w.playClicks <= 1) {
-      chip.textContent = "";
-      return;
-    }
-    chip.textContent = pen < 0 ? String(pen) : "";
-    chip.className = "chip neg";
-  }
-
   function updateWordReveal() {
     var wrap = document.getElementById("wordRevealWrap");
     var btn = document.getElementById("btnNext");
@@ -959,11 +1023,9 @@
   function updateSpellHeardDisplay(alts) {
     var wrap = document.getElementById("spellHeardWrap");
     var main = document.getElementById("spellHeardMain");
-    var altEl = document.getElementById("spellHeardAlt");
     wrap.classList.remove("app-hidden");
     if (!alts || !alts.length) {
       main.textContent = "…nothing clear yet. Try Spell again!";
-      altEl.textContent = "";
       return;
     }
     var sorted = alts.slice().sort(function (a, b) {
@@ -972,19 +1034,46 @@
     var top = sorted[0];
     var topText = (top.transcript || "").trim();
     main.textContent = topText || "…nothing clear yet. Try Spell again!";
-    var rest = [];
-    var i, t;
-    for (i = 1; i < sorted.length && rest.length < 6; i++) {
-      t = (sorted[i].transcript || "").trim();
-      if (t && rest.indexOf(t) === -1 && t !== topText) rest.push(t);
-    }
-    altEl.textContent = rest.length ? "Other guesses Chrome had: " + rest.join(" · ") : "";
   }
 
   function hideSpellHeard() {
     document.getElementById("spellHeardWrap").classList.add("app-hidden");
     document.getElementById("spellHeardMain").textContent = "";
-    document.getElementById("spellHeardAlt").textContent = "";
+  }
+
+  function hidePronounceAlts() {
+    document.getElementById("pronounceAltsWrap").classList.add("app-hidden");
+    document.getElementById("pronounceAltsList").innerHTML = "";
+  }
+
+  function updatePronounceAltsDisplay(alts) {
+    var wrap = document.getElementById("pronounceAltsWrap");
+    var ul = document.getElementById("pronounceAltsList");
+    ul.innerHTML = "";
+    wrap.classList.remove("app-hidden");
+    if (!alts || !alts.length) {
+      var li0 = document.createElement("li");
+      li0.textContent = "No guesses yet — try Pronounce again.";
+      ul.appendChild(li0);
+      return;
+    }
+    var sorted = alts.slice().sort(function (a, b) {
+      return (b.confidence || 0) - (a.confidence || 0);
+    });
+    var i, li, pct, conf, t;
+    for (i = 0; i < sorted.length; i++) {
+      t = (sorted[i].transcript || "").trim();
+      conf = typeof sorted[i].confidence === "number" ? sorted[i].confidence : 0;
+      pct = Math.round(Math.min(1, Math.max(0, conf)) * 100);
+      li = document.createElement("li");
+      li.appendChild(document.createTextNode(t || "(empty)"));
+      li.appendChild(document.createTextNode(" — "));
+      var span = document.createElement("span");
+      span.className = "pct";
+      span.textContent = pct + "%";
+      li.appendChild(span);
+      ul.appendChild(li);
+    }
   }
 
   function maybeUnlockNext() {
@@ -1024,12 +1113,6 @@
     if (w.ttsPending) return;
 
     warmSpeechEngines();
-
-    w.playClicks += 1;
-    if (w.playClicks > 1) {
-      w.listenPenalty -= 5;
-    }
-    applyListenChip();
 
     w.ttsPending = true;
     document.getElementById("btnPlay").disabled = true;
@@ -1076,14 +1159,35 @@
     rec.lang = "en-US";
     rec.interimResults = true;
     rec.continuous = true;
-    rec.maxAlternatives = 25;
+    /*
+     * Chrome speech demo (https://www.google.com/intl/en/chrome/demos/speech.html) does NOT set
+     * maxAlternatives (defaults to 1) and concatenates each NEW final segment's [0] transcript.
+     * High maxAlternatives changes n-best finals and contributed to dropped leading letters for us.
+     */
+    rec.maxAlternatives = mode === "spell" ? 1 : 4;
 
     var mergedBucket = new Map();
     var lastResultsRef = null;
+    var spellFirstInterim = null;
+    var spellFinalConcat = "";
 
     rec.onresult = function (event) {
       lastResultsRef = event.results;
-      mergeAlternativesFromResults(mergedBucket, event.results, event.resultIndex, false);
+      var mergeInterim = mode === "spell";
+      mergeAlternativesFromResults(mergedBucket, event.results, event.resultIndex, mergeInterim);
+      if (mode === "spell") {
+        var ri;
+        for (ri = event.resultIndex; ri < event.results.length; ri++) {
+          var seg = event.results[ri];
+          if (seg.isFinal) {
+            spellFinalConcat += seg[0].transcript;
+          }
+        }
+      }
+      if (mode === "spell" && spellFirstInterim === null && event.results.length > 0) {
+        var t0 = (event.results[0][0].transcript || "").trim();
+        if (t0) spellFirstInterim = t0;
+      }
       var snap = serializeResultsSnapshot(event.results);
       var tag = mode === "spell" ? "[Spell STT]" : "[Pronounce STT]";
       console.log(tag + " onresult (incremental)", {
@@ -1108,16 +1212,31 @@
       }
 
       var alts = mapToAlternativeList(mergedBucket);
+      if (mode === "spell") {
+        var concatTrim = spellFinalConcat.trim();
+        if (concatTrim) {
+          alts.unshift({ transcript: concatTrim, confidence: 1 });
+        }
+        alts = augmentSpellAlternatives(alts, spellFirstInterim);
+      }
       var structured = lastResultsRef && lastResultsRef.length
         ? serializeResultsSnapshot(lastResultsRef)
         : [];
 
       logStt(mode, {
         phase: "session_end",
-        mode: mode,
+        appCaptureMode: mode,
+        appCaptureModeNote:
+          "appCaptureMode is our label (spell vs pronounce), not a SpeechRecognition setting. " +
+          "The Web Speech API has no built-in spell mode; Chrome uses one generic dictation model.",
+        spellFirstInterimCaptured: mode === "spell" ? spellFirstInterim : undefined,
+        spellFinalConcatLikeChromeDemo: mode === "spell" ? spellFinalConcat.trim() : undefined,
         lastResultsSerialized: structured,
         mergedAlternativesUsedForScoring: alts,
-        note: "Prefers final hypotheses; if none, falls back to last interim snapshots for debugging and scoring."
+        note:
+          mode === "spell"
+            ? "Spell: maxAlternatives=1 like speech.html; finals accumulated via += results[i][0].transcript; plus merged interims + lead repair fallback."
+            : "Pronounce: maxAlternatives=4 for n-best confidence; prefers finals; falls back to last interim if no finals."
       });
 
       onGraded(alts);
@@ -1169,11 +1288,6 @@
 
   function refreshPronounceButton(w) {
     var btn = document.getElementById("btnPronounce");
-    if (w.pronounceAttempts.length >= 5) {
-      btn.disabled = true;
-      btn.textContent = "Great job!";
-      return;
-    }
     btn.disabled = false;
     btn.textContent = w.pronounceAttempts.length ? "Pronounce again" : "Pronounce";
   }
@@ -1216,22 +1330,24 @@
       return;
     }
 
-    var caps = [Infinity, 8, 6, 4, 2];
     runCapture("pronounce", "btnPronounce", function (alts) {
       var attemptIndex = w.pronounceAttempts.length + 1;
       var pr = bestPronounceScore(w.text, alts);
-      var cap = caps[Math.min(attemptIndex - 1, caps.length - 1)];
-      var capped = Math.min(cap, pr.points);
+      var points = pr.points;
       w.pronounceAttempts.push({
-        rawPoints: pr.points,
+        points: points,
         confidence: pr.confidence,
-        capped: capped,
         attemptIndex: attemptIndex
       });
 
-      document.getElementById("chipPronounce").textContent = "+" + capped;
+      var bestPron = Math.max.apply(
+        null,
+        w.pronounceAttempts.map(function (a) { return a.points; })
+      );
+      document.getElementById("chipPronounce").textContent = "+" + bestPron;
       document.getElementById("chipPronounce").className = "chip pos";
 
+      updatePronounceAltsDisplay(alts);
       refreshPronounceButton(w);
 
       maybeUnlockNext();
@@ -1240,10 +1356,9 @@
 
   function wordCommittedPoints() {
     var w = round.word;
-    var listen = w.listenPenalty;
     var spell = Math.max.apply(null, w.spellAttempts.map(function (a) { return a.capped; }).concat([0]));
-    var pron = Math.max.apply(null, w.pronounceAttempts.map(function (a) { return a.capped; }).concat([0]));
-    return listen + spell + pron;
+    var pron = Math.max.apply(null, w.pronounceAttempts.map(function (a) { return a.points; }).concat([0]));
+    return spell + pron;
   }
 
   document.getElementById("btnNext").addEventListener("click", function () {

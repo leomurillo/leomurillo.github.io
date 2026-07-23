@@ -466,6 +466,19 @@
             align-self: center;
         }
 
+        .locutor-button:hover {
+            background-color: #e67e22;
+        }
+
+        .both-return-button {
+            background-color: #2980b9;
+            margin-top: 0.75rem;
+        }
+
+        .both-return-button:hover {
+            background-color: #2471a3;
+        }
+
         /* Modal Styles */
         .modal {
             display: none;
@@ -722,6 +735,9 @@
                     <span data-lang="multiplication_label">Multiplication:</span> 
                     <span id="problemCounter">0/0</span>
                 </div>
+                <button class="locutor-button both-return-button" id="returnToBothButton" onclick="switchToBothView()" hidden>
+                    <span data-lang="return_to_both_button">← Ambos</span>
+                </button>
             </div>
 
             <div class="grid-container">
@@ -924,6 +940,7 @@
                 answer_placeholder: "Ingresa respuesta",
                 sync_button: "Sincronizar",
                 caller_view_button: "Locutor",
+                return_to_both_button: "← Ambos",
                 instructions_title: "Instrucciones",
                 instructions_content: `
                     <p>Mateloto es un juego similar al bingo, pero usando resultados de la tabla de multiplicar.</p>
@@ -986,6 +1003,7 @@
                 answer_placeholder: "Enter answer",
                 sync_button: "Synchronize",
                 caller_view_button: "Caller",
+                return_to_both_button: "← Both",
                 instructions_title: "Instructions",
                 instructions_content: `
                     <p>Mateloto is a game similar to bingo, but using multiplication table results.</p>
@@ -1034,6 +1052,7 @@
         // Game state
         let currentLanguage = 'es';
         let currentMode = null;
+        let canReturnToBoth = false; // true after Ambos → Locutor; allows returning without losing the game
         let callerState = '0'.repeat(45); // 45-bit string
         let calledProblems = [];
         let currentProblemIndex = -1;
@@ -2139,22 +2158,31 @@
 		}
 
         // Mode switching
-        function startCallerMode() {
+        function enterCallerView() {
             currentMode = 'caller';
             showScreen('callerMode');
             createTriangularGrid();
             updateCallerDisplay();
             updateNavigationButtons();
             updateCallNextButtons();
+            updateReturnToBothButton();
+        }
+
+        function startCallerMode() {
+            // Fresh Locutor game from the mode menu (no Ambos session to return to)
+            canReturnToBoth = false;
+            enterCallerView();
         }
 
         function startPlayerMode() {
+            canReturnToBoth = false;
             currentMode = 'player';
             showScreen('playerMode');
             initializePlayerMode();
         }
 
         function startBothMode() {
+            canReturnToBoth = false;
             currentMode = 'both';
             showScreen('bothMode');
             initializePlayerMode();
@@ -2181,8 +2209,29 @@
         }
 
         function switchToCallerView() {
-            // Switch from Ambos to full Locutor view while preserving called-problem state
-            startCallerMode();
+            // Ambos → full Locutor view; keep scorecard/history so user can return
+            canReturnToBoth = true;
+            enterCallerView();
+        }
+
+        function switchToBothView() {
+            // Locutor → Ambos without re-rolling the scorecard or wiping call history
+            if (!canReturnToBoth || !playerScorecard) return;
+            currentMode = 'both';
+            showScreen('bothMode');
+            updateCallerDisplay();
+            updateNavigationButtons();
+            updateCallNextButtons();
+            updateScorecardUI(false);
+            updateUndoRedoButtons();
+            updateReturnToBothButton();
+        }
+
+        function updateReturnToBothButton() {
+            const button = document.getElementById('returnToBothButton');
+            if (!button) return;
+            const show = currentMode === 'caller' && canReturnToBoth && !!playerScorecard;
+            button.hidden = !show;
         }
 
         // UI utilities
@@ -2202,6 +2251,7 @@
 
         function resetGame() {
             currentMode = null;
+            canReturnToBoth = false;
             callerState = '0'.repeat(45);
             calledProblems = [];
             currentProblemIndex = -1;
@@ -2245,6 +2295,7 @@
             });
 
             updateCallNextButtons();
+            updateReturnToBothButton();
             showScreen('modeSelection');
             toggleMenu();
         }

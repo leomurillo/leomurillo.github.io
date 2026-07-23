@@ -153,8 +153,13 @@
             margin-bottom: 0.5rem;
         }
 
-        .next-button:hover {
+        .next-button:hover:not(:disabled) {
             background-color: #229954;
+        }
+
+        .next-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .problem-display {
@@ -779,9 +784,9 @@
                         <span data-lang="multiplication_label">Multiplication:</span> 
                         <span id="bothProblemCounter">0/0</span>
                     </div>
-                    <!-- <button class="locutor-button" onclick="switchToCallerView()">
+                    <button class="locutor-button" onclick="switchToCallerView()">
                         <span data-lang="caller_view_button">Locutor</span>
-                    </button> -->
+                    </button>
                 </div>
 
                 <div class="scorecard-container">
@@ -912,6 +917,7 @@
                 mode_both: "Ambos",
                 mode_both_desc: "(llama y marca)",
                 next_button: "Siguiente >>",
+                next_button_done: "Listo!",
                 multiplication_label: "Multiplicación:",
                 validate_button: "Validar Cartón",
                 scorecard_label: "Cartón",
@@ -973,6 +979,7 @@
                 mode_both: "Both",
                 mode_both_desc: "(calls and checks)",
                 next_button: "Next >>",
+                next_button_done: "Done!",
                 multiplication_label: "Multiplication:",
                 validate_button: "Validate Card",
                 scorecard_label: "Card",
@@ -1012,6 +1019,7 @@
 				stop_scanning: "Stop Scanning",
 				camera_error: "Error accessing camera",
 				qr_scan_success: "QR code scanned successfully",
+				sync_completed: "Synchronization complete",
 				scorecard_invalid: "Invalid scorecard code",
 				game_code_invalid: "Sync code invalid",
 				validation_title: "Card Validation",
@@ -1713,24 +1721,30 @@
             }
             
             if (availableProblems.length === 0) {
-			    //todo show message stating all 45 problems have been called (all_called_msg)
+				updateCallNextButtons();
 				return;
 			}
             
             const randomIndex = availableProblems[Math.floor(Math.random() * availableProblems.length)];
             const problem = multiplicationProblems[randomIndex];
+            // Choose factor order once when called so history navigation stays stable
+            const showReverse = Math.random() < 0.5 && problem.a !== problem.b;
             
             callerState = callerState.substring(0, randomIndex) + '1' + callerState.substring(randomIndex + 1);
-            calledProblems.push(problem);
+            calledProblems.push({ ...problem, showReverse });
             currentProblemIndex = calledProblems.length - 1;
             
             updateCallerDisplay();
             updateNavigationButtons();
+            updateCallNextButtons();
             updateTriangularGrid();
         }
 
         function navigateProblem(direction) {
-            currentProblemIndex += direction;
+            if (calledProblems.length === 0) return;
+            const nextIndex = currentProblemIndex + direction;
+            if (nextIndex < 0 || nextIndex >= calledProblems.length) return;
+            currentProblemIndex = nextIndex;
             updateCallerDisplay();
             updateNavigationButtons();
         }
@@ -1742,18 +1756,23 @@
             
             const problemDisplay = document.getElementById(displayIds[0]);
             const counterDisplay = document.getElementById(displayIds[1]);
+            if (!problemDisplay || !counterDisplay) return;
             
             if (currentProblemIndex >= 0 && currentProblemIndex < calledProblems.length) {
                 const problem = calledProblems[currentProblemIndex];
-                const showReverse = Math.random() < 0.5 && problem.a !== problem.b;
-                problemDisplay.textContent = showReverse ? 
+                problemDisplay.textContent = problem.showReverse ? 
                     `${problem.b} × ${problem.a}` : 
                     `${problem.a} × ${problem.b}`;
             } else {
                 problemDisplay.textContent = '-';
             }
             
-            counterDisplay.textContent = `${currentProblemIndex + 1}/${calledProblems.length}`;
+            // Show 0/0 when nothing has been called yet
+            if (calledProblems.length === 0) {
+                counterDisplay.textContent = '0/0';
+            } else {
+                counterDisplay.textContent = `${currentProblemIndex + 1}/${calledProblems.length}`;
+            }
         }
 
         function updateNavigationButtons() {
@@ -1770,9 +1789,46 @@
             nextIds.forEach(id => {
                 const button = document.getElementById(id);
                 if (button) {
-                    button.disabled = currentProblemIndex >= calledProblems.length - 1;
+                    button.disabled = calledProblems.length === 0 || currentProblemIndex >= calledProblems.length - 1;
                 }
             });
+        }
+
+        function allProblemsCalled() {
+            // Prefer bitmask so sync-applied state is correct even before history is rebuilt
+            return !callerState.includes('0');
+        }
+
+        function updateCallNextButtons() {
+            const allCalled = allProblemsCalled();
+            document.querySelectorAll('.next-button').forEach(button => {
+                button.disabled = allCalled;
+                const labelSpan = button.querySelector('[data-lang="next_button"]');
+                if (labelSpan) {
+                    labelSpan.textContent = allCalled
+                        ? languages[currentLanguage].next_button_done
+                        : languages[currentLanguage].next_button;
+                }
+            });
+        }
+
+        function rebuildCalledProblemsFromState() {
+            // Rebuild history from bitmask (call order is not preserved by sync codes)
+            const previousByIndex = new Map(
+                calledProblems.map(p => [p.index, p])
+            );
+            calledProblems = [];
+            for (let i = 0; i < 45; i++) {
+                if (callerState[i] === '1') {
+                    const problem = multiplicationProblems[i];
+                    const prev = previousByIndex.get(i);
+                    const showReverse = prev
+                        ? !!prev.showReverse
+                        : (Math.random() < 0.5 && problem.a !== problem.b);
+                    calledProblems.push({ ...problem, showReverse });
+                }
+            }
+            currentProblemIndex = calledProblems.length > 0 ? calledProblems.length - 1 : -1;
         }
 
         // Triangular grid
@@ -2015,23 +2071,6 @@
 			return;
         }
 
-        function generateQRCode() {
-            const qrcodeDiv = document.getElementById('qrcode');
-            qrcodeDiv.innerHTML = '';
-            
-            // Convert caller state to a more compact format for QR
-            const syncData = {
-                state: callerState,
-                timestamp: Date.now()
-            };
-            
-            new QRCode(qrcodeDiv, {
-                text: JSON.stringify(syncData),
-                width: 200,
-                height: 200
-            });
-        }
-
 		function syncWithCode() {
 			const input = document.getElementById('syncCodeInput');
 			const inputValue = input.value.trim();
@@ -2058,6 +2097,14 @@
 				
 				// Apply the sync
 				callerState = callerStateToApply;
+				// Keep caller history / Done! button in sync with bitmask (needed for Ambos → Locutor)
+				rebuildCalledProblemsFromState();
+				updateCallerDisplay();
+				updateNavigationButtons();
+				updateCallNextButtons();
+				if (currentMode === 'caller') {
+					updateTriangularGrid();
+				}
 				
 				// First, unchip all numbers (except FREE)
 				for (let row = 0; row < 5; row++) {
@@ -2096,7 +2143,9 @@
             currentMode = 'caller';
             showScreen('callerMode');
             createTriangularGrid();
+            updateCallerDisplay();
             updateNavigationButtons();
+            updateCallNextButtons();
         }
 
         function startPlayerMode() {
@@ -2109,7 +2158,9 @@
             currentMode = 'both';
             showScreen('bothMode');
             initializePlayerMode();
+            updateCallerDisplay();
             updateNavigationButtons();
+            updateCallNextButtons();
         }
 
         function initializePlayerMode() {
@@ -2130,6 +2181,7 @@
         }
 
         function switchToCallerView() {
+            // Switch from Ambos to full Locutor view while preserving called-problem state
             startCallerMode();
         }
 
@@ -2157,6 +2209,42 @@
             playerScorecardNumber = null;
             playerHistory = [];
             playerHistoryIndex = -1;
+
+            // Clear caller problem UI (state is cleared above; DOM is not auto-synced)
+            ['problemDisplay', 'bothProblemDisplay'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = '-';
+            });
+            ['problemCounter', 'bothProblemCounter'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = '0/0';
+            });
+            const grid = document.getElementById('triangularGrid');
+            if (grid) grid.innerHTML = '';
+
+            // Clear validation / player answer UI leftovers
+            const validateInput = document.getElementById('validateInput');
+            if (validateInput) validateInput.value = '';
+            ['answerInput', 'bothAnswerInput'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            ['multiplicationOptions', 'bothMultiplicationOptions'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '';
+            });
+            // Clear scorecard DOM so stale cells/IDs do not linger across modes
+            ['playerScorecard', 'bothScorecard'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '';
+            });
+            // Disable history nav arrows until a new game starts
+            ['prevButton', 'nextButton', 'bothPrevButton', 'bothNextButton'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = true;
+            });
+
+            updateCallNextButtons();
             showScreen('modeSelection');
             toggleMenu();
         }
@@ -2197,16 +2285,29 @@
 					element.placeholder = languages[currentLanguage][key];
 				}
 			});
+
+            // Re-apply Done!/Listo! if all problems already called (updateLanguage resets next_button text)
+            updateCallNextButtons();
         }
 
         // Keyboard support
         document.addEventListener('keydown', (e) => {
+            // Do not steal keys while typing in inputs or using form controls
+            const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) {
+                return;
+            }
+
             if (currentMode === 'caller' || currentMode === 'both') {
                 if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
                     navigateProblem(-1);
                 } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
                     navigateProblem(1);
                 } else if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    if (allProblemsCalled()) return;
                     callNextProblem();
                 }
             }
@@ -2396,8 +2497,6 @@
         // Initialize
         initializeMultiplicationData();
         updateLanguage();
-		console.log(decodeBase32Custom("ibkwj4eq7"));
-		console.log(encodeBase32Custom("100100101110100111011001100100011101100000111"));
     </script>
 </body>
 </html>

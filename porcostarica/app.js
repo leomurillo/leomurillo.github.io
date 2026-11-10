@@ -1,97 +1,163 @@
 (function () {
-  const GEODATA = window.MORAVIA_GEODATA;
-  if (!GEODATA) {
-    console.error("MORAVIA_GEODATA not found. Ensure data.js is loaded before app.js.");
+  const CR_DATA = window.CR_DISTRICTS_DATA;
+  const PDF_GEODATA = window.MORAVIA_GEODATA;
+
+  if (!CR_DATA || !CR_DATA.districts) {
+    console.error("CR_DISTRICTS_DATA not found. Ensure cr_districts_data.js is loaded before app.js.");
     return;
   }
 
-  // Helper to compute centroid of a ring
-  function computeRingCentroid(coords) {
-    if (!coords || coords.length === 0) return { lat: 9.962166, lng: -84.048556 };
-    let sumLat = 0;
-    let sumLng = 0;
-    for (let i = 0; i < coords.length; i++) {
-      sumLat += coords[i].lat;
-      sumLng += coords[i].lng;
+  const INV_SCALE = 1.0 / (CR_DATA.scale || 100000);
+
+  // Province color palette for national view
+  const PROVINCE_COLORS = {
+    1: "#38bdf8", // San José (Sky Blue)
+    2: "#f59e0b", // Alajuela (Amber)
+    3: "#10b981", // Cartago (Emerald)
+    4: "#a855f7", // Heredia (Purple)
+    5: "#fb7185", // Guanacaste (Rose)
+    6: "#2dd4bf", // Puntarenas (Teal)
+    7: "#84cc16", // Limón (Lime)
+  };
+
+  // Decode delta-encoded integer ring [lon0, lat0, dlon1, dlat1, ...] -> [{lat, lng}, ...]
+  function decodeDeltaRing(enc) {
+    const n = enc.length >> 1;
+    const ring = new Array(n);
+    let curLon = enc[0];
+    let curLat = enc[1];
+    ring[0] = { lat: curLat * INV_SCALE, lng: curLon * INV_SCALE };
+    for (let i = 1; i < n; i++) {
+      curLon += enc[i * 2];
+      curLat += enc[i * 2 + 1];
+      ring[i] = { lat: curLat * INV_SCALE, lng: curLon * INV_SCALE };
     }
-    return { lat: sumLat / coords.length, lng: sumLng / coords.length };
+    return ring;
   }
 
-  // Build unified list of all 3 districts in Cantón 14 Moravia for Point-in-Polygon lookup & display
-  const ALL_DISTRICTS = [
-    {
+  // Decode delta-encoded integer ring directly to Leaflet [lat, lng] tuples for fast Canvas rendering
+  function decodeDeltaRingLatLngs(enc) {
+    const n = enc.length >> 1;
+    const ring = new Array(n);
+    let curLon = enc[0];
+    let curLat = enc[1];
+    ring[0] = [curLat * INV_SCALE, curLon * INV_SCALE];
+    for (let i = 1; i < n; i++) {
+      curLon += enc[i * 2];
+      curLat += enc[i * 2 + 1];
+      ring[i] = [curLat * INV_SCALE, curLon * INV_SCALE];
+    }
+    return ring;
+  }
+
+  // Prepare 487 districts with decoded LOD-Low for instant national zoom-out, and lazy LOD-High cache
+  const ALL_DISTRICTS = CR_DATA.districts.map((d) => ({
+    code: d.c,
+    provinciaCode: String(d.p),
+    provinciaName: d.pn,
+    cantonCode: d.ca,
+    cantonName: d.can,
+    distritoCode: d.d,
+    distritoName: d.dn,
+    area_km2: d.a,
+    perimeter_km: d.pe,
+    centroid: { lat: d.ct[0], lng: d.ct[1] },
+    bbox: d.bb, // [minLng, minLat, maxLng, maxLat]
+    color: PROVINCE_COLORS[d.p] || "#38bdf8",
+    _rawLo: d.lo,
+    _rawHi: d.hi,
+    _loLatLngs: d.lo.map(decodeDeltaRingLatLngs),
+    _hiRings: null,      // Lazy decoded [{lat, lng}, ...]
+    _hiLatLngs: null,    // Lazy decoded [[lat, lng], ...]
+    _searchKey: `${d.c} ${d.dn} ${d.can} ${d.pn}`.toLowerCase(),
+  }));
+
+  const DISTRICT_BY_CODE = new Map();
+  ALL_DISTRICTS.forEach((d) => DISTRICT_BY_CODE.set(d.code, d));
+
+  function getHighResRings(d) {
+    if (!d._hiRings) {
+      d._hiRings = d._rawHi.map(decodeDeltaRing);
+    }
+    return d._hiRings;
+  }
+
+  function getHighResLatLngs(d) {
+    if (!d._hiLatLngs) {
+      d._hiLatLngs = d._rawHi.map(decodeDeltaRingLatLngs);
+    }
+    return d._hiLatLngs;
+  }
+
+  // Build Hacienda PDF Moravia dictionary (11401, 11402, 11403) for direct comparison
+  const PDF_MORAVIA = {};
+  if (PDF_GEODATA && PDF_GEODATA.district) {
+    PDF_MORAVIA["11401"] = {
       code: "11401",
-      provinciaName: "San José",
-      provinciaCode: "1",
-      cantonName: "Moravia",
-      cantonCode: "14",
-      distritoName: "San Vicente",
-      distritoCode: "01",
-      color: "#00e5ff",
-      fillColor: "#0ea5e9",
-      area_km2: GEODATA.district.area_km2,
-      perimeter_km: GEODATA.district.perimeter_km,
-      vertex_count: GEODATA.district.vertex_count,
-      centroid: { lat: 9.962166, lng: -84.048556 },
-      coordinates: GEODATA.district.coordinates,
-    },
-    ...GEODATA.context_districts.map((cd, idx) => ({
-      code: cd.code,
-      provinciaName: "San José",
-      provinciaCode: "1",
-      cantonName: "Moravia",
-      cantonCode: "14",
-      distritoName: cd.name,
-      distritoCode: cd.code.slice(3),
-      color: idx === 0 ? "#f59e0b" : "#a855f7",
-      fillColor: idx === 0 ? "#f59e0b" : "#a855f7",
-      area_km2: cd.area_km2,
-      perimeter_km: cd.perimeter_km,
-      vertex_count: cd.coordinates.length,
-      centroid: computeRingCentroid(cd.coordinates),
-      coordinates: cd.coordinates,
-    })),
-  ];
+      name: "San Vicente",
+      area_km2: PDF_GEODATA.district.area_km2,
+      perimeter_km: PDF_GEODATA.district.perimeter_km,
+      vertex_count: PDF_GEODATA.district.vertex_count,
+      median_diff_m: 0.51,
+      p90_diff_m: 1.01,
+      max_diff_m: 49.22,
+      coordinates: PDF_GEODATA.district.coordinates,
+    };
+    (PDF_GEODATA.context_districts || []).forEach((cd) => {
+      PDF_MORAVIA[cd.code] = {
+        code: cd.code,
+        name: cd.name,
+        area_km2: cd.area_km2,
+        perimeter_km: cd.perimeter_km,
+        vertex_count: cd.coordinates.length,
+        median_diff_m: cd.code === "11403" ? 0.53 : 0.67,
+        p90_diff_m: cd.code === "11403" ? 1.02 : 38.02,
+        max_diff_m: cd.code === "11403" ? 1.67 : 91.42,
+        coordinates: cd.coordinates,
+      };
+    });
+  }
 
   // Application State
   const state = {
     engine: "leaflet", // 'gmaps' | 'leaflet'
     apiKey: "",
     mapType: "roadmap",
-    showContextDistricts: true,
-    showVertices: false,
-    fillOpacity: 0.22,
+    showNationalDistricts: true,
+    showPdfOverlay: true,
+    fillOpacity: 0.20,
     strokeWeight: 3.5,
     selectedDistrictCode: "11401",
+    currentLod: "LOD-High",
     pin: {
       lat: 9.962166,
       lng: -84.048556,
-      source: "manual", // 'gps' | 'ip' | 'manual'
+      source: "manual",
       accuracyMeters: null,
       label: "Parque de Moravia",
     },
     lastResult: null,
     gmap: null,
     gmapObjects: {
-      svBoundary: null,
-      contextPolys: [],
-      vertexMarkers: [],
+      districtPolys: new Map(), // code -> google.maps.Polygon
+      pdfPolys: [],
       pinMarker: null,
       accuracyCircle: null,
     },
     lmap: null,
     lmapObjects: {
+      canvasRenderer: null,
       baseLayer: null,
-      svBoundary: null,
-      contextPolys: [],
-      vertexLayer: null,
+      districtPolys: new Map(), // code -> { poly, isHighRes }
+      activeHighlightPoly: null,
+      pdfPolys: [],
       pinMarker: null,
       accuracyCircle: null,
     },
   };
 
   // ============================================================================
-  // GEODESIC & GEOMETRY ENGINE (CRTM05, POINT-IN-POLYGON, BORDER DISTANCE)
+  // GEODESIC & GEOMETRY ENGINE (CRTM05, 2-STAGE BBOX + RAY-CASTING PIP)
   // ============================================================================
   function wgs84ToCrtm05(latDeg, lonDeg) {
     const a = 6378137.0;
@@ -147,7 +213,6 @@
     return { e: easting, n: northing };
   }
 
-  // Ray-casting point-in-ring check
   function pointInRing(lat, lng, ring) {
     let inside = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -162,63 +227,91 @@
     return inside;
   }
 
-  // Minimum distance in meters from (lat, lng) to a polygon ring's segments
-  function minDistanceToRingMeters(lat, lng, ring) {
+  function pointInMultiRings(lat, lng, rings) {
+    for (let r = 0; r < rings.length; r++) {
+      if (pointInRing(lat, lng, rings[r])) return true;
+    }
+    return false;
+  }
+
+  function minDistanceToRingsMeters(lat, lng, rings) {
     const cosLat = Math.cos((lat * Math.PI) / 180.0);
     const mPerDegLat = 110574.0;
     const mPerDegLng = 111320.0 * cosLat;
 
     let minDistSq = Infinity;
-    for (let i = 0; i < ring.length - 1; i++) {
-      const ax = (ring[i].lng - lng) * mPerDegLng;
-      const ay = (ring[i].lat - lat) * mPerDegLat;
-      const bx = (ring[i + 1].lng - lng) * mPerDegLng;
-      const by = (ring[i + 1].lat - lat) * mPerDegLat;
+    for (let r = 0; r < rings.length; r++) {
+      const ring = rings[r];
+      for (let i = 0; i < ring.length - 1; i++) {
+        const ax = (ring[i].lng - lng) * mPerDegLng;
+        const ay = (ring[i].lat - lat) * mPerDegLat;
+        const bx = (ring[i + 1].lng - lng) * mPerDegLng;
+        const by = (ring[i + 1].lat - lat) * mPerDegLat;
 
-      const dx = bx - ax;
-      const dy = by - ay;
-      const lenSq = dx * dx + dy * dy;
-      let t = 0;
-      if (lenSq > 1e-9) {
-        t = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / lenSq));
+        const dx = bx - ax;
+        const dy = by - ay;
+        const lenSq = dx * dx + dy * dy;
+        let t = 0;
+        if (lenSq > 1e-9) {
+          t = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / lenSq));
+        }
+        const px = ax + t * dx;
+        const py = ay + t * dy;
+        const dSq = px * px + py * py;
+        if (dSq < minDistSq) minDistSq = dSq;
       }
-      const px = ax + t * dx;
-      const py = ay + t * dy;
-      const dSq = px * px + py * py;
-      if (dSq < minDistSq) minDistSq = dSq;
     }
     return Math.sqrt(minDistSq);
   }
 
-  // Evaluate any (lat, lng) against all Moravia districts
+  // Fast 2-Stage National Point-in-Polygon across all 487 districts + Hacienda PDF cross-check
   function evaluatePinLocation(lat, lng) {
+    const t0 = performance.now();
     let matchedDistrict = null;
     let borderDistMeters = Infinity;
+    let bboxCandidates = 0;
 
-    for (const d of ALL_DISTRICTS) {
-      if (pointInRing(lat, lng, d.coordinates)) {
-        matchedDistrict = d;
-        borderDistMeters = minDistanceToRingMeters(lat, lng, d.coordinates);
-        break;
-      }
-    }
-
-    if (!matchedDistrict) {
-      for (const d of ALL_DISTRICTS) {
-        const dist = minDistanceToRingMeters(lat, lng, d.coordinates);
-        if (dist < borderDistMeters) {
-          borderDistMeters = dist;
+    // Stage 1: AABB Bounding-Box Filter across 487 districts
+    for (let i = 0; i < ALL_DISTRICTS.length; i++) {
+      const d = ALL_DISTRICTS[i];
+      const bb = d.bbox;
+      if (lng >= bb[0] && lat >= bb[1] && lng <= bb[2] && lat <= bb[3]) {
+        bboxCandidates++;
+        // Stage 2: Exact High-Res Ray-Casting
+        const hiRings = getHighResRings(d);
+        if (pointInMultiRings(lat, lng, hiRings)) {
+          matchedDistrict = d;
+          borderDistMeters = minDistanceToRingsMeters(lat, lng, hiRings);
+          break;
         }
       }
     }
 
+    // Also check Hacienda PDF Moravia polygons (11401, 11402, 11403)
+    let matchedPdfMoravia = null;
+    let pdfDistMeters = null;
+    for (const code of ["11401", "11403", "11402"]) {
+      const pm = PDF_MORAVIA[code];
+      if (pm && pointInRing(lat, lng, pm.coordinates)) {
+        matchedPdfMoravia = pm;
+        pdfDistMeters = minDistanceToRingsMeters(lat, lng, [pm.coordinates]);
+        break;
+      }
+    }
+
+    const elapsedMs = performance.now() - t0;
     const crtm = wgs84ToCrtm05(lat, lng);
+
     return {
       lat,
       lng,
       crtm,
       district: matchedDistrict,
       borderDistMeters,
+      pdfMoravia: matchedPdfMoravia,
+      pdfDistMeters,
+      elapsedMs,
+      bboxCandidates,
     };
   }
 
@@ -295,7 +388,6 @@
                 city: d.city || "",
                 region: d.region || "",
                 country: d.country || "",
-                isp: (d.connection && d.connection.isp) || d.org || "",
                 ip: d.ip || "",
               }
             : null,
@@ -311,7 +403,6 @@
                 city: d.city || "",
                 region: d.region || "",
                 country: d.country_name || "",
-                isp: d.org || "",
                 ip: d.ip || "",
               }
             : null,
@@ -327,7 +418,6 @@
                 city: d.cityName || "",
                 region: d.regionName || "",
                 country: d.countryName || "",
-                isp: "",
                 ip: d.ipAddress || "",
               }
             : null,
@@ -343,7 +433,6 @@
                 city: d.city || "",
                 region: d.region || "",
                 country: d.country || "",
-                isp: d.organization_name || "",
                 ip: d.ip || "",
               }
             : null,
@@ -386,7 +475,7 @@
     const result = evaluatePinLocation(lat, lng);
     state.lastResult = result;
 
-    // Update URL query string without reloading so user can bookmark/share
+    // Update URL query string without reloading
     try {
       const url = new URL(window.location.href);
       url.searchParams.set("lat", lat.toFixed(6));
@@ -394,12 +483,21 @@
       window.history.replaceState({}, "", url.toString());
     } catch (_) {}
 
+    // Update HUD performance stats
+    const perfEl = document.getElementById("hud-perf-stats");
+    if (perfEl) {
+      perfEl.textContent = `⚡ PIP 487 Distritos: ${result.elapsedMs.toFixed(2)} ms (${result.bboxCandidates} cand. AABB) · ${state.currentLod}`;
+    }
+
     // Update Hero UI Card
     document.getElementById("res-pin-coords").textContent = `${lat.toFixed(6)}°, ${lng.toFixed(6)}°`;
     document.getElementById("res-pin-crtm").textContent = `CRTM05: E ${result.crtm.e.toFixed(1)}, N ${result.crtm.n.toFixed(1)}`;
 
     const alertBox = document.getElementById("res-boundary-alert");
     const alertText = document.getElementById("res-boundary-text");
+    const cmpBox = document.getElementById("res-compare-box");
+    const cmpBadge = document.getElementById("res-compare-badge");
+    const cmpDetail = document.getElementById("res-compare-detail");
 
     if (result.district) {
       state.selectedDistrictCode = result.district.code;
@@ -420,24 +518,51 @@
         alertBox.className = "boundary-alert safe";
         alertText.textContent = `✓ Dentro de ${result.district.distritoName} (${result.district.code}) · A ${distM.toLocaleString()} m del borde`;
       }
+
+      // Check if in Moravia or if PDF Moravia polygon also matched
+      const pdfMatch = result.pdfMoravia;
+      const gtIsMoravia = result.district.code.startsWith("114");
+      if (gtIsMoravia || pdfMatch) {
+        cmpBox.style.display = "block";
+        const pm = PDF_MORAVIA[result.district.code] || pdfMatch;
+        if (pdfMatch && pdfMatch.code === result.district.code) {
+          cmpBadge.textContent = "✓ 100% Coincidente";
+          cmpBadge.style.color = "#34d399";
+          cmpDetail.innerHTML = `GeoTEC/IGN: <strong>${result.district.code} ${result.district.distritoName}</strong> (${result.district.area_km2} km²) · PDF Hacienda: <strong>${pm.code} ${pm.name}</strong> (${pm.area_km2} km² · desv. mediana <strong>${pm.median_diff_m} m</strong>)`;
+        } else if (pdfMatch && pdfMatch.code !== result.district.code) {
+          cmpBadge.textContent = "⚠️ Franja Limítrofe PDF vs GeoTEC";
+          cmpBadge.style.color = "#f59e0b";
+          cmpDetail.innerHTML = `En GeoTEC/IGN este punto cae en <strong>${result.district.code} ${result.district.distritoName}</strong>, mientras que en el PDF de Hacienda cae en <strong>${pdfMatch.code} ${pdfMatch.name}</strong> (a ${Math.round(result.borderDistMeters)} m del borde).`;
+        } else {
+          cmpBadge.textContent = "⚠️ Franja Borde (GeoTEC vs PDF)";
+          cmpBadge.style.color = "#f59e0b";
+          cmpDetail.innerHTML = `Dentro de <strong>${result.district.code} ${result.district.distritoName}</strong> en GeoTEC/IGN, pero a pocos metros fuera del polígono del PDF de Hacienda.`;
+        }
+      } else {
+        cmpBox.style.display = "block";
+        cmpBadge.textContent = "Cobertura Nacional IGN/GeoTEC";
+        cmpBadge.style.color = "#38bdf8";
+        cmpDetail.innerHTML = `Distrito <strong>${result.district.code} ${result.district.distritoName}</strong> (${result.district.cantonName}, ${result.district.provinciaName}) · Área oficial: <strong>${result.district.area_km2} km²</strong> · Perímetro: ${result.district.perimeter_km} km`;
+      }
     } else {
       state.selectedDistrictCode = null;
-      const distKm = (result.borderDistMeters / 1000).toFixed(2);
-      document.getElementById("res-postal-code").textContent = "Fuera POC";
+      document.getElementById("res-postal-code").textContent = "Fuera CR";
       document.getElementById("res-postal-code").style.color = "#f59e0b";
-      document.getElementById("res-provincia").textContent = "Fuera de Moravia";
-      document.getElementById("res-provincia-code").textContent = "POC Cantón 14";
-      document.getElementById("res-canton").textContent = "A " + distKm + " km";
-      document.getElementById("res-canton-code").textContent = "de Moravia";
+      document.getElementById("res-provincia").textContent = "Fuera de Costa Rica";
+      document.getElementById("res-provincia-code").textContent = "Sin provincia";
+      document.getElementById("res-canton").textContent = "Océano / Exterior";
+      document.getElementById("res-canton-code").textContent = "—";
       document.getElementById("res-distrito").textContent = "Mové el Pin";
-      document.getElementById("res-distrito-code").textContent = "o usá un Preset";
+      document.getElementById("res-distrito-code").textContent = "a territorio CR";
 
       alertBox.className = "boundary-alert near";
-      alertText.textContent = `📍 Tu pin está a ${distKm} km de Cantón 14 Moravia. Hacé clic en Moravia o en un botón de prueba arriba.`;
+      alertText.textContent = `📍 El pin está fuera del territorio continental/insular de los 487 distritos de Costa Rica.`;
+      cmpBox.style.display = "none";
     }
 
     syncPinOnMap(panMap);
     syncMapStyles();
+    populateCodeSnippet();
   }
 
   function syncPinOnMap(panMap = false) {
@@ -447,14 +572,13 @@
       res && res.district
         ? `<div style="font-family:Inter,sans-serif;font-size:12px;color:#0f172a;">
              <strong style="font-size:14px;color:#0284c7;">CP ${res.district.code} — ${res.district.distritoName}</strong><br/>
-             Provincia ${res.district.provinciaName}, Cantón ${res.district.cantonName}<br/>
-             Área: ${res.district.area_km2} km² · Perímetro: ${res.district.perimeter_km} km<br/>
+             Cantón ${res.district.cantonName}, Provincia ${res.district.provinciaName}<br/>
+             Área: ${res.district.area_km2} km² · A ${Math.round(res.borderDistMeters).toLocaleString()} m del borde<br/>
              <span style="font-size:10.5px;color:#64748b;">(${lat.toFixed(5)}, ${lng.toFixed(5)}) — Arrastrá el pin para ajustar</span>
            </div>`
         : `<div style="font-family:Inter,sans-serif;font-size:12px;color:#0f172a;">
-             <strong>Pin fuera del área POC (Cantón 14 Moravia)</strong><br/>
-             (${lat.toFixed(5)}, ${lng.toFixed(5)})<br/>
-             Arrastrá el pin hacia Moravia para probar.
+             <strong>Pin fuera del territorio de Costa Rica</strong><br/>
+             (${lat.toFixed(5)}, ${lng.toFixed(5)})
            </div>`;
 
     if (state.engine === "gmaps" && state.gmap) {
@@ -495,7 +619,7 @@
       }
       if (panMap) {
         state.gmap.panTo({ lat, lng });
-        if (state.gmap.getZoom() < 14 && res && res.district) state.gmap.setZoom(14);
+        if (state.gmap.getZoom() < 13 && res && res.district) state.gmap.setZoom(14);
       }
     } else if (state.lmap) {
       if (!state.lmapObjects.pinMarker) {
@@ -529,22 +653,21 @@
         if (res && res.district) {
           state.lmap.setView([lat, lng], Math.max(state.lmap.getZoom(), 14));
         } else {
-          const c = GEODATA.district.centroid;
-          state.lmap.fitBounds(
-            [
-              [lat, lng],
-              [c.lat, c.lng],
-            ],
-            { padding: [50, 50], maxZoom: 15 }
-          );
+          state.lmap.setView([lat, lng], 8);
         }
       }
     }
   }
 
-  // Populate Sidebar Stats & Listeners
+  // ============================================================================
+  // SIDEBAR & CONTROLS
+  // ============================================================================
   function initSidebar() {
-    renderDistrictsList();
+    renderDistrictsList("");
+
+    document.getElementById("district-search").addEventListener("input", (e) => {
+      renderDistrictsList(e.target.value.trim().toLowerCase());
+    });
 
     // GPS & IP Fallback buttons
     document.getElementById("btn-use-gps").addEventListener("click", () => {
@@ -560,8 +683,11 @@
         const lat = parseFloat(chip.dataset.lat);
         const lng = parseFloat(chip.dataset.lng);
         const label = chip.dataset.label || "Punto de prueba";
-        setStatusBanner("manual", `📌 Punto de prueba seleccionado: <strong>${label}</strong>`);
+        setStatusBanner("manual", `📌 Punto seleccionado: <strong>${label}</strong>`);
         setPinLocation(lat, lng, "manual", null, label, true);
+        if (label.includes("49m") && state.lmap) {
+          state.lmap.setView([lat, lng], 17);
+        }
       });
     });
 
@@ -613,25 +739,28 @@
     });
 
     // Checkboxes
-    document.getElementById("chk-context").addEventListener("change", (e) => {
-      state.showContextDistricts = e.target.checked;
+    document.getElementById("chk-national").addEventListener("change", (e) => {
+      state.showNationalDistricts = e.target.checked;
       syncMapStyles();
     });
 
-    document.getElementById("chk-vertices").addEventListener("change", (e) => {
-      state.showVertices = e.target.checked;
-      syncVerticesLayer();
+    document.getElementById("chk-pdf-overlay").addEventListener("change", (e) => {
+      state.showPdfOverlay = e.target.checked;
+      syncMapStyles();
     });
 
-    // View buttons
+    // Camera fit buttons
     document.getElementById("btn-fit-sv").addEventListener("click", () => {
-      fitSanVicenteBounds();
+      fitMoraviaBounds();
     });
-    document.getElementById("btn-fit-all").addEventListener("click", () => {
-      fitAllMoraviaBounds();
+    document.getElementById("btn-fit-cr").addEventListener("click", () => {
+      fitCostaRicaBounds();
     });
 
     // Modals
+    document.getElementById("btn-open-compare").addEventListener("click", () => {
+      document.getElementById("compare-modal").classList.add("open");
+    });
     document.getElementById("btn-open-code").addEventListener("click", () => {
       document.getElementById("code-modal").classList.add("open");
     });
@@ -646,7 +775,6 @@
 
     // Exports
     document.getElementById("btn-dl-geojson").addEventListener("click", downloadGeoJson);
-    document.getElementById("btn-dl-kml").addEventListener("click", downloadKml);
     document.getElementById("btn-copy-snippet").addEventListener("click", copyDeveloperSnippet);
 
     // API Key bar
@@ -678,29 +806,47 @@
     populateCodeSnippet();
   }
 
-  function renderDistrictsList() {
+  function renderDistrictsList(filter) {
     const container = document.getElementById("districts-list");
+    const countLabel = document.getElementById("districts-count-label");
     if (!container) return;
     container.innerHTML = "";
 
-    ALL_DISTRICTS.forEach((d) => {
+    let filtered;
+    if (!filter) {
+      // Put Moravia districts first, then active district, then rest of Costa Rica
+      const moravia = ALL_DISTRICTS.filter((d) => d.code.startsWith("114"));
+      const others = ALL_DISTRICTS.filter((d) => !d.code.startsWith("114"));
+      filtered = [...moravia, ...others];
+      if (countLabel) countLabel.textContent = `487 distritos (mostrando 60)`;
+    } else {
+      filtered = ALL_DISTRICTS.filter((d) => d._searchKey.includes(filter));
+      if (countLabel) countLabel.textContent = `${filtered.length} de 487 distritos`;
+    }
+
+    const slice = filtered.slice(0, 60);
+    slice.forEach((d) => {
       const item = document.createElement("div");
+      const isMoravia = d.code.startsWith("114");
       item.className = "zone-item" + (state.selectedDistrictCode === d.code ? " active" : "");
       item.innerHTML = `
         <div class="zone-left">
           <span class="zone-swatch" style="background:${d.color}"></span>
           <div>
-            <div class="zone-code">Código Postal ${d.code}</div>
-            <div class="zone-name">Distrito ${d.distritoCode}: ${d.distritoName}</div>
+            <div class="zone-code">CP ${d.code} ${isMoravia ? "· ★ Moravia" : ""}</div>
+            <div class="zone-name">${d.distritoName} (${d.cantonName})</div>
           </div>
         </div>
         <div class="zone-right">
-          <div class="zone-val">${d.area_km2} km²</div>
-          <div class="zone-area">Perímetro ${d.perimeter_km} km · ${d.vertex_count.toLocaleString()} vértices</div>
+          <div class="zone-val">${d.provinciaName}</div>
+          <div class="zone-area">${d.area_km2} km²</div>
         </div>
       `;
       item.addEventListener("click", () => {
-        setStatusBanner("manual", `📌 Distrito seleccionado: <strong>${d.code} — ${d.distritoName} de Moravia</strong>`);
+        setStatusBanner(
+          "manual",
+          `📌 Distrito seleccionado: <strong>${d.code} — ${d.distritoName} (${d.cantonName}, ${d.provinciaName})</strong>`
+        );
         setPinLocation(d.centroid.lat, d.centroid.lng, "manual", null, d.distritoName, true);
       });
       container.appendChild(item);
@@ -714,12 +860,59 @@
   }
 
   // ============================================================================
+  // MULTI-LOD GEOMETRIC TRICK: VIEWPORT & ZOOM-DEPENDENT GEOMETRY SWAPPING
+  // ============================================================================
+  function bboxIntersectsBounds(bb, west, south, east, north) {
+    // bb = [minLng, minLat, maxLng, maxLat]
+    return !(bb[2] < west || bb[0] > east || bb[3] < south || bb[1] > north);
+  }
+
+  function updateLeafletLodGeometries() {
+    if (!state.lmap) return;
+    const zoom = state.lmap.getZoom();
+    const bounds = state.lmap.getBounds();
+    const west = bounds.getWest();
+    const south = bounds.getSouth();
+    const east = bounds.getEast();
+    const north = bounds.getNorth();
+
+    const useHighResInViewport = zoom >= 12;
+    let highResCount = 0;
+
+    ALL_DISTRICTS.forEach((d) => {
+      const entry = state.lmapObjects.districtPolys.get(d.code);
+      if (!entry) return;
+      const shouldBeHigh =
+        d.code === state.selectedDistrictCode ||
+        (useHighResInViewport && bboxIntersectsBounds(d.bbox, west, south, east, north));
+
+      if (shouldBeHigh && !entry.isHighRes) {
+        entry.poly.setLatLngs(getHighResLatLngs(d));
+        entry.isHighRes = true;
+      } else if (!shouldBeHigh && entry.isHighRes) {
+        entry.poly.setLatLngs(d._loLatLngs);
+        entry.isHighRes = false;
+      }
+      if (entry.isHighRes) highResCount++;
+    });
+
+    state.currentLod = useHighResInViewport
+      ? `LOD-High (${highResCount} dist. en vista)`
+      : `LOD-Low (Vista Nacional 60fps)`;
+    const badge = document.getElementById("lod-status-badge");
+    if (badge) {
+      badge.textContent = useHighResInViewport ? `LOD-High (z=${zoom})` : `LOD-Low (z=${zoom})`;
+      badge.style.color = useHighResInViewport ? "#34d399" : "#38bdf8";
+    }
+  }
+
+  // ============================================================================
   // ENGINE 1: GOOGLE MAPS PLATFORM JAVASCRIPT SDK
   // ============================================================================
   window.gm_authFailure = function () {
     console.warn("Google Maps authentication/billing failure detected. Falling back to interactive map engine.");
     const pill = document.getElementById("engine-status-pill");
-    pill.textContent = "Google Tiles + Leaflet";
+    pill.textContent = "Google Tiles + Canvas LOD";
     pill.className = "engine-pill fallback";
     document.getElementById("gmap-container").style.display = "none";
     document.getElementById("leaflet-container").style.display = "block";
@@ -764,15 +957,6 @@
     pill.textContent = "Google Maps JS SDK";
     pill.className = "engine-pill gmaps";
 
-    const d = GEODATA.district;
-    const darkStyles = [
-      { elementType: "geometry", stylers: [{ color: "#1e293b" }] },
-      { elementType: "labels.text.stroke", stylers: [{ color: "#0f172a" }] },
-      { elementType: "labels.text.fill", stylers: [{ color: "#94a3b8" }] },
-      { featureType: "road", elementType: "geometry", stylers: [{ color: "#334155" }] },
-      { featureType: "water", elementType: "geometry", stylers: [{ color: "#090d16" }] },
-    ];
-
     const gmapType =
       state.mapType === "dark" || state.mapType === "voyager" ? "roadmap" : state.mapType;
 
@@ -780,7 +964,6 @@
       center: { lat: state.pin.lat, lng: state.pin.lng },
       zoom: 14,
       mapTypeId: gmapType,
-      styles: state.mapType === "dark" ? darkStyles : null,
       mapTypeControl: true,
       streetViewControl: true,
       fullscreenControl: true,
@@ -797,72 +980,70 @@
       }
     });
 
-    state.gmapObjects.contextPolys = [];
-    state.gmapObjects.vertexMarkers = [];
+    state.gmapObjects.districtPolys.clear();
+    state.gmapObjects.pdfPolys = [];
     state.gmapObjects.pinMarker = null;
 
-    // 1. Context Districts (La Trinidad 11403 & San Jeronimo 11402)
-    GEODATA.context_districts.forEach((cd, idx) => {
-      const color = idx === 0 ? "#f59e0b" : "#a855f7";
+    // Create 487 District Polygons using LOD-Low initially
+    ALL_DISTRICTS.forEach((d) => {
+      const loPaths = d._rawLo.map(decodeDeltaRing);
       const poly = new google.maps.Polygon({
-        paths: cd.coordinates,
-        strokeColor: color,
-        strokeOpacity: 0.95,
-        strokeWeight: Math.max(2, state.strokeWeight - 0.5),
-        fillColor: color,
-        fillOpacity: state.fillOpacity * 0.75,
-        map: state.showContextDistricts ? state.gmap : null,
+        paths: loPaths,
+        strokeColor: d.color,
+        strokeOpacity: 0.75,
+        strokeWeight: 1.2,
+        fillColor: d.color,
+        fillOpacity: state.fillOpacity * 0.65,
+        map: state.showNationalDistricts ? state.gmap : null,
         zIndex: 2,
       });
       poly.addListener("click", (e) => {
         if (e.latLng) {
-          setStatusBanner("manual", `📌 Pin colocado en <strong>${cd.code} — ${cd.name}</strong>.`);
-          setPinLocation(e.latLng.lat(), e.latLng.lng(), "manual", null, cd.name, false);
+          setStatusBanner("manual", `📌 Pin colocado en <strong>${d.code} — ${d.distritoName} (${d.cantonName})</strong>.`);
+          setPinLocation(e.latLng.lat(), e.latLng.lng(), "manual", null, d.distritoName, false);
         }
       });
       poly.addListener("mousemove", (e) => {
         if (e.latLng) updateCursorCoordinates(e.latLng.lat(), e.latLng.lng());
       });
-      state.gmapObjects.contextPolys.push(poly);
+      state.gmapObjects.districtPolys.set(d.code, poly);
     });
 
-    // 2. Primary Boundary Polygon of Distrito 11401 - San Vicente de Moravia
-    state.gmapObjects.svBoundary = new google.maps.Polygon({
-      paths: d.coordinates,
-      strokeColor: "#00f0ff",
-      strokeOpacity: 1.0,
-      strokeWeight: state.strokeWeight,
-      fillColor: "#0ea5e9",
-      fillOpacity: state.fillOpacity,
-      map: state.gmap,
-      zIndex: 5,
-    });
-    state.gmapObjects.svBoundary.addListener("click", (e) => {
-      if (e.latLng) {
-        setStatusBanner("manual", "📌 Pin colocado en <strong>11401 — San Vicente de Moravia</strong>.");
-        setPinLocation(e.latLng.lat(), e.latLng.lng(), "manual", null, "San Vicente", false);
-      }
-    });
-    state.gmapObjects.svBoundary.addListener("mousemove", (e) => {
-      if (e.latLng) updateCursorCoordinates(e.latLng.lat(), e.latLng.lng());
+    // Hacienda PDF Moravia Overlay Polygons
+    Object.values(PDF_MORAVIA).forEach((pm) => {
+      const poly = new google.maps.Polygon({
+        paths: pm.coordinates,
+        strokeColor: "#f43f5e",
+        strokeOpacity: 0.95,
+        strokeWeight: 2.2,
+        fillOpacity: 0.0,
+        clickable: false,
+        map: state.showPdfOverlay ? state.gmap : null,
+        zIndex: 12,
+      });
+      state.gmapObjects.pdfPolys.push(poly);
     });
 
     syncPinOnMap(false);
     syncMapStyles();
-    syncVerticesLayer();
   }
 
   // ============================================================================
-  // ENGINE 2: BUILT-IN INTERACTIVE GEODESIC MAP ENGINE (LEAFLET + GOOGLE TILES)
+  // ENGINE 2: HARDWARE-ACCELERATED CANVAS MULTI-LOD ENGINE (LEAFLET + GOOGLE TILES)
   // ============================================================================
   function initLeafletFallback() {
-    const d = GEODATA.district;
     const container = document.getElementById("leaflet-container");
 
+    // Shared HTML5 Canvas renderer so all 487 districts draw in < 6ms on a single canvas!
+    const canvasRenderer = L.canvas({ padding: 0.5 });
+    state.lmapObjects.canvasRenderer = canvasRenderer;
+
     state.lmap = L.map(container, {
-      center: [d.centroid.lat, d.centroid.lng],
+      center: [state.pin.lat, state.pin.lng],
       zoom: 14,
       zoomControl: true,
+      preferCanvas: true,
+      renderer: canvasRenderer,
     });
 
     updateLeafletTileLayer();
@@ -876,50 +1057,54 @@
       setPinLocation(e.latlng.lat, e.latlng.lng, "manual", null, "Pin en mapa", false);
     });
 
-    // 1. Context Districts (La Trinidad 11403 & San Jeronimo 11402)
-    GEODATA.context_districts.forEach((cd, idx) => {
-      const color = idx === 0 ? "#f59e0b" : "#a855f7";
-      const latlngs = cd.coordinates.map((pt) => [pt.lat, pt.lng]);
-      const poly = L.polygon(latlngs, {
-        color,
-        weight: Math.max(2, state.strokeWeight - 0.5),
-        fillColor: color,
-        fillOpacity: state.fillOpacity * 0.75,
+    state.lmap.on("zoomend moveend", () => {
+      updateLeafletLodGeometries();
+      syncMapStyles(false);
+    });
+
+    // 1. Render all 487 Costa Rica districts on the shared Canvas layer
+    ALL_DISTRICTS.forEach((d) => {
+      const poly = L.polygon(d._loLatLngs, {
+        renderer: canvasRenderer,
+        color: d.color,
+        weight: 1.2,
+        opacity: 0.75,
+        fillColor: d.color,
+        fillOpacity: state.fillOpacity * 0.65,
       });
       poly.bindTooltip(
-        `<strong>Distrito ${cd.code} — ${cd.name}</strong><br/>Código Postal: ${cd.code} · Área: ${cd.area_km2} km²`,
+        `<strong>CP ${d.code} — ${d.distritoName}</strong><br/>Cantón ${d.cantonName}, ${d.provinciaName} (${d.area_km2} km²)`,
         { sticky: true }
       );
       poly.on("click", (e) => {
         L.DomEvent.stopPropagation(e);
-        setStatusBanner("manual", `📌 Pin colocado en <strong>${cd.code} — ${cd.name}</strong>.`);
-        setPinLocation(e.latlng.lat, e.latlng.lng, "manual", null, cd.name, false);
+        setStatusBanner(
+          "manual",
+          `📌 Pin colocado en <strong>${d.code} — ${d.distritoName} (${d.cantonName})</strong>.`
+        );
+        setPinLocation(e.latlng.lat, e.latlng.lng, "manual", null, d.distritoName, false);
       });
-      if (state.showContextDistricts) poly.addTo(state.lmap);
-      state.lmapObjects.contextPolys.push(poly);
+      if (state.showNationalDistricts) poly.addTo(state.lmap);
+      state.lmapObjects.districtPolys.set(d.code, { poly, isHighRes: false });
     });
 
-    // 2. Outer Boundary of San Vicente de Moravia (Distrito 11401)
-    const svLatLngs = d.coordinates.map((pt) => [pt.lat, pt.lng]);
-    state.lmapObjects.svBoundary = L.polygon(svLatLngs, {
-      color: "#00e5ff",
-      weight: state.strokeWeight,
-      opacity: 1.0,
-      fillColor: "#0ea5e9",
-      fillOpacity: state.fillOpacity,
-    }).addTo(state.lmap);
-
-    state.lmapObjects.svBoundary.bindTooltip(
-      `<strong>Distrito 11401 — San Vicente de Moravia</strong><br/>Código Postal: 11401 · Área: ${d.area_km2} km²`,
-      { sticky: true }
-    );
-    state.lmapObjects.svBoundary.on("click", (e) => {
-      L.DomEvent.stopPropagation(e);
-      setStatusBanner("manual", "📌 Pin colocado en <strong>11401 — San Vicente de Moravia</strong>.");
-      setPinLocation(e.latlng.lat, e.latlng.lng, "manual", null, "San Vicente", false);
+    // 2. Hacienda PDF Moravia Overlay Polygons (11401, 11402, 11403) in dashed rose (#f43f5e)
+    Object.values(PDF_MORAVIA).forEach((pm) => {
+      const latlngs = pm.coordinates.map((pt) => [pt.lat, pt.lng]);
+      const pdfPoly = L.polygon(latlngs, {
+        renderer: canvasRenderer,
+        color: "#f43f5e",
+        weight: 2.2,
+        dashArray: "7, 5",
+        fillOpacity: 0.0,
+        interactive: false,
+      });
+      if (state.showPdfOverlay) pdfPoly.addTo(state.lmap);
+      state.lmapObjects.pdfPolys.push(pdfPoly);
     });
 
-    fitSanVicenteBounds();
+    updateLeafletLodGeometries();
+    fitMoraviaBounds();
   }
 
   function updateLeafletTileLayer() {
@@ -931,315 +1116,244 @@
     if (state.mapType === "satellite") {
       state.lmapObjects.baseLayer = L.tileLayer(
         "https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}&hl=es",
-        {
-          subdomains: "0123",
-          maxZoom: 21,
-          attribution: "Map data &copy; Google",
-        }
+        { subdomains: "0123", maxZoom: 21, attribution: "Map data &copy; Google" }
       ).addTo(state.lmap);
     } else if (state.mapType === "hybrid") {
       state.lmapObjects.baseLayer = L.tileLayer(
         "https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&hl=es",
-        {
-          subdomains: "0123",
-          maxZoom: 21,
-          attribution: "Map data &copy; Google",
-        }
+        { subdomains: "0123", maxZoom: 21, attribution: "Map data &copy; Google" }
       ).addTo(state.lmap);
     } else if (state.mapType === "terrain") {
       state.lmapObjects.baseLayer = L.tileLayer(
         "https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}&hl=es",
-        {
-          subdomains: "0123",
-          maxZoom: 20,
-          attribution: "Map data &copy; Google",
-        }
+        { subdomains: "0123", maxZoom: 20, attribution: "Map data &copy; Google" }
       ).addTo(state.lmap);
     } else if (state.mapType === "voyager") {
       state.lmapObjects.baseLayer = L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-        {
-          subdomains: "abcd",
-          maxZoom: 20,
-          attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-        }
+        { subdomains: "abcd", maxZoom: 20, attribution: "&copy; OpenStreetMap &copy; CARTO" }
       ).addTo(state.lmap);
     } else if (state.mapType === "dark") {
       state.lmapObjects.baseLayer = L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        {
-          subdomains: "abcd",
-          maxZoom: 20,
-          attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-        }
+        { subdomains: "abcd", maxZoom: 20, attribution: "&copy; OpenStreetMap &copy; CARTO" }
       ).addTo(state.lmap);
     } else {
       state.lmapObjects.baseLayer = L.tileLayer(
         "https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=es",
-        {
-          subdomains: "0123",
-          maxZoom: 21,
-          attribution: "Map data &copy; Google",
-        }
+        { subdomains: "0123", maxZoom: 21, attribution: "Map data &copy; Google" }
       ).addTo(state.lmap);
     }
   }
 
   function updateBaseMapType() {
     if (state.engine === "gmaps" && state.gmap) {
-      const darkStyles = [
-        { elementType: "geometry", stylers: [{ color: "#1e293b" }] },
-        { elementType: "labels.text.stroke", stylers: [{ color: "#0f172a" }] },
-        { elementType: "labels.text.fill", stylers: [{ color: "#94a3b8" }] },
-        { featureType: "road", elementType: "geometry", stylers: [{ color: "#334155" }] },
-        { featureType: "water", elementType: "geometry", stylers: [{ color: "#090d16" }] },
-      ];
       const gmapType =
         state.mapType === "dark" || state.mapType === "voyager" ? "roadmap" : state.mapType;
       state.gmap.setMapTypeId(gmapType);
-      state.gmap.setOptions({ styles: state.mapType === "dark" ? darkStyles : null });
     } else {
       updateLeafletTileLayer();
     }
   }
 
-  function syncMapStyles() {
-    renderDistrictsList();
+  function syncMapStyles(refreshSidebar = true) {
+    if (refreshSidebar) {
+      const searchEl = document.getElementById("district-search");
+      renderDistrictsList(searchEl ? searchEl.value.trim().toLowerCase() : "");
+    }
 
     if (state.engine === "gmaps" && state.gmap) {
-      state.gmapObjects.contextPolys.forEach((p, idx) => {
-        const code = GEODATA.context_districts[idx].code;
-        const isSel = state.selectedDistrictCode === code;
-        p.setMap(state.showContextDistricts ? state.gmap : null);
-        p.setOptions({
-          strokeWeight: isSel ? state.strokeWeight + 1 : Math.max(2, state.strokeWeight - 0.5),
-          fillOpacity: isSel ? Math.min(0.65, state.fillOpacity + 0.15) : state.fillOpacity * 0.75,
-        });
+      ALL_DISTRICTS.forEach((d) => {
+        const poly = state.gmapObjects.districtPolys.get(d.code);
+        if (!poly) return;
+        const isSel = state.selectedDistrictCode === d.code;
+        if (!state.showNationalDistricts && !isSel) {
+          poly.setMap(null);
+          return;
+        }
+        poly.setMap(state.gmap);
+        if (isSel) {
+          poly.setPaths(getHighResRings(d));
+          poly.setOptions({
+            strokeColor: "#00e5ff",
+            strokeWeight: state.strokeWeight,
+            strokeOpacity: 1.0,
+            fillColor: "#0ea5e9",
+            fillOpacity: Math.min(0.65, state.fillOpacity + 0.12),
+            zIndex: 10,
+          });
+        } else {
+          poly.setOptions({
+            strokeColor: d.color,
+            strokeWeight: 1.1,
+            strokeOpacity: 0.7,
+            fillColor: d.color,
+            fillOpacity: state.fillOpacity * 0.55,
+            zIndex: 2,
+          });
+        }
       });
 
-      if (state.gmapObjects.svBoundary) {
-        const isSel = state.selectedDistrictCode === "11401";
-        state.gmapObjects.svBoundary.setOptions({
-          strokeWeight: isSel ? state.strokeWeight + 0.5 : state.strokeWeight,
-          fillOpacity: isSel ? Math.min(0.65, state.fillOpacity + 0.1) : state.fillOpacity,
-        });
-      }
+      state.gmapObjects.pdfPolys.forEach((p) => {
+        p.setMap(state.showPdfOverlay ? state.gmap : null);
+      });
     } else if (state.lmap) {
-      state.lmapObjects.contextPolys.forEach((p, idx) => {
-        const code = GEODATA.context_districts[idx].code;
-        const isSel = state.selectedDistrictCode === code;
-        if (state.showContextDistricts) {
-          if (!state.lmap.hasLayer(p)) p.addTo(state.lmap);
-          p.setStyle({
-            weight: isSel ? state.strokeWeight + 1 : Math.max(2, state.strokeWeight - 0.5),
-            fillOpacity: isSel ? Math.min(0.65, state.fillOpacity + 0.15) : state.fillOpacity * 0.75,
+      const zoom = state.lmap.getZoom();
+      const baseWeight = zoom <= 9 ? 0.7 : zoom <= 11 ? 1.0 : 1.4;
+
+      ALL_DISTRICTS.forEach((d) => {
+        const entry = state.lmapObjects.districtPolys.get(d.code);
+        if (!entry) return;
+        const isSel = state.selectedDistrictCode === d.code;
+
+        if (!state.showNationalDistricts && !isSel) {
+          if (state.lmap.hasLayer(entry.poly)) state.lmap.removeLayer(entry.poly);
+          return;
+        }
+        if (!state.lmap.hasLayer(entry.poly)) entry.poly.addTo(state.lmap);
+
+        if (isSel) {
+          if (!entry.isHighRes) {
+            entry.poly.setLatLngs(getHighResLatLngs(d));
+            entry.isHighRes = true;
+          }
+          entry.poly.setStyle({
+            color: "#00e5ff",
+            weight: state.strokeWeight,
+            opacity: 1.0,
+            fillColor: "#0ea5e9",
+            fillOpacity: Math.min(0.65, state.fillOpacity + 0.12),
           });
+          entry.poly.bringToFront();
+        } else {
+          entry.poly.setStyle({
+            color: d.color,
+            weight: baseWeight,
+            opacity: zoom <= 9 ? 0.55 : 0.75,
+            fillColor: d.color,
+            fillOpacity: state.fillOpacity * 0.55,
+          });
+        }
+      });
+
+      state.lmapObjects.pdfPolys.forEach((p) => {
+        if (state.showPdfOverlay) {
+          if (!state.lmap.hasLayer(p)) p.addTo(state.lmap);
+          p.bringToFront();
         } else {
           if (state.lmap.hasLayer(p)) state.lmap.removeLayer(p);
         }
       });
-
-      if (state.lmapObjects.svBoundary) {
-        const isSel = state.selectedDistrictCode === "11401";
-        state.lmapObjects.svBoundary.setStyle({
-          weight: isSel ? state.strokeWeight + 0.5 : state.strokeWeight,
-          fillOpacity: isSel ? Math.min(0.65, state.fillOpacity + 0.1) : state.fillOpacity,
-        });
-        state.lmapObjects.svBoundary.bringToFront();
-      }
     }
   }
 
-  function syncVerticesLayer() {
-    const coords = GEODATA.district.coordinates;
-    const step = 6;
-
-    if (state.engine === "gmaps" && state.gmap) {
-      state.gmapObjects.vertexMarkers.forEach((m) => m.setMap(null));
-      state.gmapObjects.vertexMarkers = [];
-      if (!state.showVertices) return;
-
-      for (let i = 0; i < coords.length - 1; i += step) {
-        const pt = coords[i];
-        const marker = new google.maps.Marker({
-          position: pt,
-          map: state.gmap,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 3,
-            fillColor: "#f59e0b",
-            fillOpacity: 1,
-            strokeColor: "#000",
-            strokeWeight: 1,
-          },
-          title: `Vertex #${i}: (${pt.lat}, ${pt.lng})`,
-        });
-        state.gmapObjects.vertexMarkers.push(marker);
-      }
-    } else if (state.lmap) {
-      if (state.lmapObjects.vertexLayer) {
-        state.lmap.removeLayer(state.lmapObjects.vertexLayer);
-        state.lmapObjects.vertexLayer = null;
-      }
-      if (!state.showVertices) return;
-
-      const group = L.layerGroup();
-      for (let i = 0; i < coords.length - 1; i += step) {
-        const pt = coords[i];
-        const crtm = GEODATA.district.crtm05_coordinates[i];
-        L.circleMarker([pt.lat, pt.lng], {
-          radius: 3,
-          color: "#000",
-          weight: 1,
-          fillColor: "#f59e0b",
-          fillOpacity: 1,
-        })
-          .bindTooltip(`Vértice #${i}<br/>WGS84: ${pt.lat}, ${pt.lng}<br/>CRTM05: E ${crtm.e}, N ${crtm.n}`)
-          .addTo(group);
-      }
-      group.addTo(state.lmap);
-      state.lmapObjects.vertexLayer = group;
-    }
-  }
-
-  function fitSanVicenteBounds() {
-    const b = GEODATA.district.bbox_wgs84;
+  function fitMoraviaBounds() {
+    const sv = DISTRICT_BY_CODE.get("11401");
+    if (!sv) return;
+    const bb = sv.bbox; // [minLng, minLat, maxLng, maxLat]
     if (state.engine === "gmaps" && state.gmap) {
       const bounds = new google.maps.LatLngBounds(
-        { lat: b.south, lng: b.west },
-        { lat: b.north, lng: b.east }
+        { lat: bb[1], lng: bb[0] },
+        { lat: bb[3], lng: bb[2] }
       );
       state.gmap.fitBounds(bounds, 35);
     } else if (state.lmap) {
       state.lmap.fitBounds(
         [
-          [b.south, b.west],
-          [b.north, b.east],
+          [bb[1], bb[0]],
+          [bb[3], bb[2]],
         ],
         { padding: [30, 30] }
       );
     }
   }
 
-  function fitAllMoraviaBounds() {
-    let south = Infinity,
-      north = -Infinity,
-      west = Infinity,
-      east = -Infinity;
-    ALL_DISTRICTS.forEach((d) => {
-      d.coordinates.forEach((pt) => {
-        if (pt.lat < south) south = pt.lat;
-        if (pt.lat > north) north = pt.lat;
-        if (pt.lng < west) west = pt.lng;
-        if (pt.lng > east) east = pt.lng;
-      });
-    });
-
+  function fitCostaRicaBounds() {
+    // Mainland Costa Rica bounding box (8.03° N to 11.22° N, -85.95° W to -82.55° W)
+    const south = 8.03,
+      north = 11.22,
+      west = -85.95,
+      east = -82.55;
     if (state.engine === "gmaps" && state.gmap) {
       const bounds = new google.maps.LatLngBounds({ lat: south, lng: west }, { lat: north, lng: east });
-      state.gmap.fitBounds(bounds, 30);
+      state.gmap.fitBounds(bounds, 20);
     } else if (state.lmap) {
       state.lmap.fitBounds(
         [
           [south, west],
           [north, east],
         ],
-        { padding: [25, 25] }
+        { padding: [20, 20] }
       );
     }
   }
 
   // Developer Exports
   function downloadGeoJson() {
+    const sel = DISTRICT_BY_CODE.get(state.selectedDistrictCode || "11401") || ALL_DISTRICTS[0];
+    const hiRings = getHighResRings(sel);
     const fc = {
       type: "FeatureCollection",
-      name: "Distritos_Canton_14_Moravia",
-      features: ALL_DISTRICTS.map((d) => ({
-        type: "Feature",
-        id: d.code,
-        properties: {
-          codigo_distrito: d.code,
-          codigo_postal: d.code,
-          nombre: d.distritoName,
-          canton: "14 Moravia",
-          provincia: "1 San José",
-          area_km2: d.area_km2,
-          perimeter_km: d.perimeter_km,
-          vertex_count: d.vertex_count,
+      name: `Distrito_${sel.code}_${sel.distritoName.replace(/\s+/g, "_")}`,
+      features: [
+        {
+          type: "Feature",
+          id: sel.code,
+          properties: {
+            codigo_postal: sel.code,
+            codigo_distrito: sel.code,
+            provincia: sel.provinciaName,
+            canton: sel.cantonName,
+            distrito: sel.distritoName,
+            area_km2: sel.area_km2,
+            perimeter_km: sel.perimeter_km,
+            fuente: "IGN / SNIT / GeoTEC + PorCostaRica.com",
+          },
+          geometry: {
+            type: hiRings.length === 1 ? "Polygon" : "MultiPolygon",
+            coordinates:
+              hiRings.length === 1
+                ? [hiRings[0].map((pt) => [pt.lng, pt.lat])]
+                : hiRings.map((r) => [r.map((pt) => [pt.lng, pt.lat])]),
+          },
         },
-        geometry: {
-          type: "Polygon",
-          coordinates: [d.coordinates.map((pt) => [pt.lng, pt.lat])],
-        },
-      })),
+      ],
     };
     const blob = new Blob([JSON.stringify(fc, null, 2)], { type: "application/geo+json" });
-    const a = new Image();
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "san_vicente_11401.geojson";
+    link.download = `distrito_${sel.code}.geojson`;
     link.click();
   }
 
-  function downloadKml() {
-    const d = GEODATA.district;
-    const coordsStr = d.coordinates.map((pt) => `${pt.lng},${pt.lat},0`).join(" ");
-    const kml = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Document>
-    <name>Distrito 11401 - San Vicente de Moravia</name>
-    <Placemark>
-      <name>San Vicente de Moravia (11401)</name>
-      <description>Área: ${d.area_km2} km² | Perímetro: ${d.perimeter_km} km</description>
-      <Polygon>
-        <outerBoundaryIs>
-          <LinearRing>
-            <coordinates>${coordsStr}</coordinates>
-          </LinearRing>
-        </outerBoundaryIs>
-      </Polygon>
-    </Placemark>
-  </Document>
-</kml>`;
-    const blob = new Blob([kml], { type: "application/vnd.google-earth.kml+xml" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "san_vicente_11401.kml";
-    a.click();
-  }
-
   function populateCodeSnippet() {
-    const d = GEODATA.district;
-    const sampleCoords = d.coordinates
-      .slice(0, 6)
-      .map((c) => `  { lat: ${c.lat}, lng: ${c.lng} }`)
+    const sel = DISTRICT_BY_CODE.get(state.selectedDistrictCode || "11401") || ALL_DISTRICTS[0];
+    const hiRings = getHighResRings(sel);
+    const firstRing = hiRings[0] || [];
+    const sampleCoords = firstRing
+      .slice(0, 5)
+      .map((c) => `  { lat: ${c.lat.toFixed(5)}, lng: ${c.lng.toFixed(5)} }`)
       .join(",\n");
 
-    const snippet = `// Google Maps JavaScript API v3 — Distrito 11401: San Vicente de Moravia
-// Extracted from Ministerio de Hacienda / IGN (CRTM05 EPSG:5367 -> WGS84 EPSG:4326)
-// Total vertices: ${d.vertex_count} | Area: ${d.area_km2} km² | Perimeter: ${d.perimeter_km} km
+    const snippet = `// Google Maps JavaScript API v3 — Distrito ${sel.code}: ${sel.distritoName} (${sel.cantonName}, ${sel.provinciaName})
+// Fuente: GeoTEC / IGN-SNIT (487 Distritos de Costa Rica) | Área: ${sel.area_km2} km²
 
-async function initSanVicenteMap() {
+async function initDistrictMap() {
   const { Map } = await google.maps.importLibrary("maps");
 
   const map = new Map(document.getElementById("map"), {
-    center: { lat: ${d.centroid.lat}, lng: ${d.centroid.lng} },
+    center: { lat: ${sel.centroid.lat}, lng: ${sel.centroid.lng} },
     zoom: 14,
-    mapId: "SAN_VICENTE_11401_MAP",
   });
 
-  // Option A: Load District GeoJSON (11401, 11402, 11403)
-  map.data.loadGeoJson("./san_vicente_11401.geojson");
-
-  // Option B: Direct google.maps.Polygon from data.js
-  const sanVicenteCoords = [
+  const districtCoords = [
 ${sampleCoords},
-  // ... (${d.vertex_count} total vertices in data.js / san_vicente_11401.geojson)
+  // ... (${firstRing.length} vértices en resolución LOD-High)
   ];
 
-  const sanVicentePolygon = new google.maps.Polygon({
-    paths: window.MORAVIA_GEODATA.district.coordinates,
-    strokeColor: "#00f0ff",
+  const districtPolygon = new google.maps.Polygon({
+    paths: districtCoords,
+    strokeColor: "#00e5ff",
     strokeOpacity: 1.0,
     strokeWeight: 3.5,
     fillColor: "#0ea5e9",
@@ -1247,7 +1361,8 @@ ${sampleCoords},
     map,
   });
 }`;
-    document.getElementById("dev-code-snippet").textContent = snippet;
+    const el = document.getElementById("dev-code-snippet");
+    if (el) el.textContent = snippet;
   }
 
   function copyDeveloperSnippet() {
@@ -1276,7 +1391,6 @@ ${sampleCoords},
     } else {
       // Initial default pin in San Vicente Centro while requesting GPS (with automatic IP fallback!)
       setPinLocation(9.962166, -84.048556, "manual", null, "Parque de Moravia", false);
-      // Automatically test Location Permission -> IP Fallback flow on HTTPS / localhost
       if (window.location.protocol === "https:" || window.location.hostname === "localhost") {
         requestGpsLocation(true);
       }

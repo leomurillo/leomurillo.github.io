@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PorCostaRica.com POC — Encontrá tu Distrito y Código Postal en el Mapa</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Leaflet CSS/JS for instant interactive map engine -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Application Styles -->
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+  <!-- Top Navigation & Google Maps Developer Bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-badge">PorCostaRica</span>
+      <div class="brand-title">
+        <h1>Encontrá tu Distrito y Código Postal en el Mapa</h1>
+        <p>POC Cantón 14 Moravia (11401 · 11402 · 11403) · GPS + IP Fallback + Zonas Hacienda ONT</p>
+      </div>
+    </div>
+
+    <div class="api-key-bar" title="Opcional: Ingresa tu Google Maps Platform API Key para activar google.maps.Map nativo">
+      <span id="engine-status-pill" class="engine-pill fallback">Google Tiles + Leaflet</span>
+      <input
+        id="gmaps-key-input"
+        type="password"
+        placeholder="Google Maps API Key (opcional)"
+        autocomplete="off"
+      />
+      <button id="btn-load-gmaps" class="btn btn-primary">Usar SDK</button>
+    </div>
+
+    <div class="top-actions">
+      <button id="btn-open-pipeline" class="btn">Extrapolación PDF</button>
+      <button id="btn-open-code" class="btn">Código JS</button>
+      <button id="btn-dl-geojson" class="btn">GeoJSON</button>
+      <button id="btn-dl-kml" class="btn">KML</button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <div class="workspace">
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+
+      <!-- SECTION 1: LOCATION & POSTAL CODE LOOKUP (CORE PRODUCT) -->
+      <div class="panel-section">
+        <div class="section-header">
+          <span class="section-title">1. Tu Ubicación (GPS / IP Fallback / Pin)</span>
+          <button id="btn-fit-sv" class="btn" style="padding: 3px 8px; font-size: 11px;">Ver Moravia</button>
+        </div>
+
+        <div class="loc-actions-grid">
+          <button id="btn-use-gps" class="btn btn-emerald">📍 Usar mi GPS</button>
+          <button id="btn-use-ip" class="btn btn-primary">🌐 Aproximar por IP</button>
+        </div>
+
+        <div id="loc-status-banner" class="loc-status-banner visible manual">
+          📌 Pin de prueba en <strong>San Vicente de Moravia</strong>. Tocá el mapa, arrastrá el pin o usá <strong>GPS / IP</strong>.
+        </div>
+
+        <div style="font-size: 10.5px; color: var(--text-muted); margin-bottom: 5px;">
+          Puntos de prueba rápida (simulá un pin o hacé clic en cualquier punto del mapa):
+        </div>
+        <div class="presets-bar">
+          <button class="preset-chip" data-lat="9.962166" data-lng="-84.048556" data-label="Parque de Moravia (Centro)">Parque Moravia (11401)</button>
+          <button class="preset-chip" data-lat="9.962293" data-lng="-84.055923" data-label="Lincoln Plaza">Lincoln Plaza (11401)</button>
+          <button class="preset-chip" data-lat="9.967950" data-lng="-84.041950" data-label="Frontera San Vicente / La Trinidad">Borde 11401↔11403</button>
+          <button class="preset-chip" data-lat="9.978500" data-lng="-84.034500" data-label="La Trinidad Centro">La Trinidad (11403)</button>
+          <button class="preset-chip" data-lat="10.008500" data-lng="-84.011500" data-label="San Jerónimo">San Jerónimo (11402)</button>
+        </div>
+
+        <!-- Postal Code & Administrative Result Card -->
+        <div class="postal-hero-card">
+          <div class="postal-top-row">
+            <div>
+              <div class="postal-code-label">Código Postal Oficial</div>
+              <div id="res-postal-code" class="postal-code-big">11401</div>
+            </div>
+            <div style="text-align: right;">
+              <div class="postal-code-label">Coordenadas del Pin</div>
+              <div id="res-pin-coords" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-main); margin-top: 3px;">
+                9.96217°, -84.04856°
+              </div>
+              <div id="res-pin-crtm" style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">
+                CRTM05: E 494676, N 1101560
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-hierarchy">
+            <div class="admin-box">
+              <div class="admin-box-label">Provincia</div>
+              <div id="res-provincia" class="admin-box-val">San José</div>
+              <div id="res-provincia-code" class="admin-box-code">Código 1</div>
+            </div>
+            <div class="admin-box">
+              <div class="admin-box-label">Cantón</div>
+              <div id="res-canton" class="admin-box-val">Moravia</div>
+              <div id="res-canton-code" class="admin-box-code">Código 14</div>
+            </div>
+            <div class="admin-box">
+              <div class="admin-box-label">Distrito</div>
+              <div id="res-distrito" class="admin-box-val">San Vicente</div>
+              <div id="res-distrito-code" class="admin-box-code">Código 01</div>
+            </div>
+          </div>
+
+          <div id="res-boundary-alert" class="boundary-alert safe">
+            <span id="res-boundary-text">✓ A 412 m del límite distrital más cercano</span>
+          </div>
+
+          <div id="res-zone-box" class="zone-subcard">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="color: var(--text-muted); font-size: 10.5px; text-transform: uppercase; font-weight: 700;">
+                Zona Homogénea (Hacienda ONT)
+              </span>
+              <span id="res-zone-code" style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-hover);">
+                114-01-U01
+              </span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 3px;">
+              <strong id="res-zone-name" style="font-size: 12.5px;">Central</strong>
+              <span id="res-zone-val" style="font-family: var(--font-mono); font-weight: 700; color: #34d399;">
+                ₡275,000 / m²
+              </span>
+            </div>
+            <div id="res-zone-meta" style="font-size: 10.5px; color: var(--text-muted); margin-top: 2px;">
+              Tipología: CO04 (Comercial) · Lote tipo: 175 m² (9m frente)
+            </div>
+          </div>
+
+          <div class="postal-actions-row">
+            <button id="btn-copy-cp" class="btn btn-primary">📋 Copiar CP</button>
+            <button id="btn-copy-addr" class="btn">📋 Copiar Dirección</button>
+            <button id="btn-share-pin" class="btn">🔗 Compartir Pin</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 2: MAP & LAYER CONTROLS -->
+      <div class="panel-section">
+        <div class="section-header">
+          <span class="section-title">2. Capas Cartográficas</span>
+        </div>
+
+        <div class="control-row">
+          <label for="map-type-select">Mapa Base</label>
+          <select id="map-type-select" class="select-input">
+            <option value="roadmap">Google / Street Map (Calles)</option>
+            <option value="hybrid">Google / Satélite Híbrido</option>
+            <option value="satellite">Satélite (Alta Resolución)</option>
+            <option value="terrain">Topográfico / Relieve (Terrain)</option>
+            <option value="voyager">CARTO Voyager (Vectorial Claro)</option>
+            <option value="dark">CARTO Dark (Vectorial Oscuro)</option>
+          </select>
+        </div>
+
+        <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 8px;">
+          Visualización de Zonas Homogéneas (Distrito 11401):
+        </div>
+        <div class="color-mode-tabs">
+          <button class="tab-btn" data-zonemode="none">Solo Límites</button>
+          <button class="tab-btn active" data-zonemode="pdf">Colores PDF</button>
+          <button class="tab-btn" data-zonemode="heatmap">Valor (₡/m²)</button>
+        </div>
+
+        <div class="control-row">
+          <label for="opacity-slider">Opacidad de Relleno (<span id="opacity-val">40%</span>)</label>
+          <input id="opacity-slider" type="range" min="0" max="0.9" step="0.05" value="0.40" class="range-input" />
+        </div>
+
+        <div class="control-row">
+          <label for="stroke-slider">Grosor Límite 11401 (<span id="stroke-val">3.5px</span>)</label>
+          <input id="stroke-slider" type="range" min="1" max="8" step="0.5" value="3.5" class="range-input" />
+        </div>
+
+        <div class="control-row" style="margin-top: 6px;">
+          <label for="chk-context">Mostrar La Trinidad (11403) y San Jerónimo (11402)</label>
+          <input id="chk-context" type="checkbox" checked />
+        </div>
+
+        <div class="control-row">
+          <label for="chk-vertices">Inspeccionar Vértices del Polígono (2,518 pts)</label>
+          <input id="chk-vertices" type="checkbox" />
+        </div>
+      </div>
+
+      <!-- SECTION 3: 62 HOMOGENEOUS ZONES EXPLORER -->
+      <div class="panel-section" style="flex: 1; display: flex; flex-direction: column; border-bottom: none;">
+        <div class="section-header">
+          <span class="section-title">3. Explorar 62 Zonas Homogéneas (11401)</span>
+        </div>
+        <input
+          id="zone-search"
+          type="text"
+          class="search-box"
+          placeholder="Buscar zona (ej. U01, Central, Lincoln, Guaria, Saint Clare)..."
+        />
+        <div id="zones-list" class="zones-list"></div>
+      </div>
+    </aside>
+
+    <!-- Map Canvas Wrapper -->
+    <main class="map-wrapper">
+      <div id="gmap-container" style="display: none;"></div>
+      <div id="leaflet-container"></div>
+
+      <!-- Top-Right Legend Overlay -->
+      <div class="map-hud-top-right">
+        <div style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">
+          Simbología Cartográfica
+        </div>
+        <div class="legend-row">
+          <span class="legend-line" style="background: #00e5ff; height: 4px;"></span>
+          <span><strong>11401 San Vicente</strong> (5.39 km²)</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-line" style="border-top: 2px dashed #f59e0b; background: transparent;"></span>
+          <span><strong>11403 La Trinidad</strong> (4.90 km²)</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-line" style="border-top: 2px dashed #a855f7; background: transparent;"></span>
+          <span><strong>11402 San Jerónimo</strong> (18.57 km²)</span>
+        </div>
+        <div style="font-size: 10.5px; color: var(--text-muted); margin-top: 6px; border-top: 1px solid var(--border); padding-top: 5px;">
+          💡 Hacé clic en cualquier punto del mapa o arrastrá el marcador para consultar su distrito y código postal.
+        </div>
+      </div>
+
+      <!-- Bottom Coordinate Readout Bar -->
+      <div class="map-hud-bottom">
+        <div class="hud-item">
+          <span>Cursor WGS84:</span>
+          <strong id="hud-wgs84">9.962166° N, -84.048556° W</strong>
+        </div>
+        <div class="hud-item">
+          <span>CRTM05 (EPSG:5367):</span>
+          <strong id="hud-crtm05">E 494676.2 m, N 1101560.4 m</strong>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal 1: PDF Extrapolation Pipeline -->
+  <div id="pipeline-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Metodología de Extrapolación Vectorial desde el PDF Oficial</h3>
+        <button class="btn modal-close-btn">Cerrar</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          El polígono oficial del <strong>Distrito 11401 (San Vicente de Moravia)</strong> y de los distritos vecinos
+          (<strong>11403 La Trinidad</strong> y <strong>11402 San Jerónimo</strong>) fueron extraídos directamente
+          del flujo de instrucciones vectoriales (8.23 MB) del documento oficial del Ministerio de Hacienda / Órgano de Normalización Técnica:
+          <em>Mapa de Valores de Terrenos por Zonas Homogéneas — Provincia 1 San José, Cantón 14 Moravia</em>.
+        </p>
+        <ul style="margin: 12px 0 12px 20px;">
+          <li>
+            <strong>1. Extracción de las 127 Zonas Homogéneas y Cancelación Topológica:</strong>
+            De los 127 polígonos vectoriales cerrados del mapa principal (escala 1:16,000), 62 corresponden a
+            <code>11401 San Vicente</code>, 47 a <code>11403 La Trinidad</code> y 18 a <code>11402 San Jerónimo</code>.
+            Al cancelar las aristas internas compartidas (grado par), emerge el ciclo cerrado exacto de cada distrito
+            (<strong>2,518 vértices</strong> para San Vicente) coincidiendo al 100% con el trazo <code>Distritos (1.4399 w)</code> del PDF.
+          </li>
+          <li>
+            <strong>2. Georreferenciación Exacta a la Cuadrícula CRTM05 (EPSG:5367):</strong>
+            Se calibró la transformación afín usando las 5 líneas verticales de Este (<code>494000</code> a <code>502000 m</code>) y 6 líneas horizontales de Norte
+            (<code>1102000</code> a <code>1112000 m</code>) del PDF (error residual &lt; 0.54 m):
+            <code>E = 5.64856857 · x_pdf + 492004.4737</code>, <code>N = 5.64829512 · y_pdf + 1096579.1214</code>.
+          </li>
+          <li>
+            <strong>3. Inversión Transversal de Mercator (CRTM05 → WGS84 EPSG:4326):</strong>
+            Usando los parámetros oficiales del IGN para CRTM05 sobre el elipsoide WGS84 (<code>λ₀ = -84°</code>, <code>φ₀ = 0°</code>, <code>k₀ = 0.9999</code>,
+            <code>E₀ = 500,000 m</code>, <code>N₀ = 0 m</code>), se proyectaron los vértices a latitud/longitud.
+            Las áreas obtenidas (San Vicente: <strong>5.3919 km²</strong>, La Trinidad: <strong>4.9010 km²</strong>, San Jerónimo: <strong>18.5742 km²</strong>)
+            coinciden al 99.9% con las áreas oficiales del IGN.
+          </li>
+        </ul>
+        <img src="./verify_sv_loop.png" alt="Verificación del Polígono de San Vicente 11401" class="pipeline-img" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Google Maps Developer Code Snippet -->
+  <div id="code-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Google Maps Platform — Código para Desarrolladores (JS API v3)</h3>
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-copy-snippet" class="btn btn-primary">Copiar Código</button>
+          <button class="btn modal-close-btn">Cerrar</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <p>
+          Puedes integrar directamente el polígono de <strong>San Vicente de Moravia (Distrito 11401)</strong> usando
+          <code>google.maps.Polygon</code> o cargando el archivo <code>san_vicente_11401.geojson</code> en la capa de datos (<code>map.data</code>):
+        </p>
+        <div id="dev-code-snippet" class="code-block"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Geodata & Application Logic -->
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

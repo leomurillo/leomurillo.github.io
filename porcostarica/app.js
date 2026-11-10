@@ -5,7 +5,19 @@
     return;
   }
 
-  // Build unified list of all districts in Cantón 14 Moravia for Point-in-Polygon lookup
+  // Helper to compute centroid of a ring
+  function computeRingCentroid(coords) {
+    if (!coords || coords.length === 0) return { lat: 9.962166, lng: -84.048556 };
+    let sumLat = 0;
+    let sumLng = 0;
+    for (let i = 0; i < coords.length; i++) {
+      sumLat += coords[i].lat;
+      sumLng += coords[i].lng;
+    }
+    return { lat: sumLat / coords.length, lng: sumLng / coords.length };
+  }
+
+  // Build unified list of all 3 districts in Cantón 14 Moravia for Point-in-Polygon lookup & display
   const ALL_DISTRICTS = [
     {
       code: "11401",
@@ -15,11 +27,15 @@
       cantonCode: "14",
       distritoName: "San Vicente",
       distritoCode: "01",
+      color: "#00e5ff",
+      fillColor: "#0ea5e9",
       area_km2: GEODATA.district.area_km2,
       perimeter_km: GEODATA.district.perimeter_km,
+      vertex_count: GEODATA.district.vertex_count,
+      centroid: { lat: 9.962166, lng: -84.048556 },
       coordinates: GEODATA.district.coordinates,
     },
-    ...GEODATA.context_districts.map((cd) => ({
+    ...GEODATA.context_districts.map((cd, idx) => ({
       code: cd.code,
       provinciaName: "San José",
       provinciaCode: "1",
@@ -27,8 +43,12 @@
       cantonCode: "14",
       distritoName: cd.name,
       distritoCode: cd.code.slice(3),
+      color: idx === 0 ? "#f59e0b" : "#a855f7",
+      fillColor: idx === 0 ? "#f59e0b" : "#a855f7",
       area_km2: cd.area_km2,
       perimeter_km: cd.perimeter_km,
+      vertex_count: cd.coordinates.length,
+      centroid: computeRingCentroid(cd.coordinates),
       coordinates: cd.coordinates,
     })),
   ];
@@ -38,12 +58,11 @@
     engine: "leaflet", // 'gmaps' | 'leaflet'
     apiKey: "",
     mapType: "roadmap",
-    zoneMode: "pdf", // 'none' | 'pdf' | 'heatmap'
     showContextDistricts: true,
     showVertices: false,
-    fillOpacity: 0.40,
+    fillOpacity: 0.22,
     strokeWeight: 3.5,
-    selectedZoneId: null,
+    selectedDistrictCode: "11401",
     pin: {
       lat: 9.962166,
       lng: -84.048556,
@@ -56,7 +75,6 @@
     gmapObjects: {
       svBoundary: null,
       contextPolys: [],
-      zonePolys: new Map(),
       vertexMarkers: [],
       pinMarker: null,
       accuracyCircle: null,
@@ -66,7 +84,6 @@
       baseLayer: null,
       svBoundary: null,
       contextPolys: [],
-      zonePolys: new Map(),
       vertexLayer: null,
       pinMarker: null,
       accuracyCircle: null,
@@ -145,16 +162,6 @@
     return inside;
   }
 
-  // Point-in-polygon supporting interior holes
-  function pointInPolygonRings(lat, lng, rings) {
-    if (!rings || rings.length === 0) return false;
-    if (!pointInRing(lat, lng, rings[0])) return false;
-    for (let k = 1; k < rings.length; k++) {
-      if (pointInRing(lat, lng, rings[k])) return false;
-    }
-    return true;
-  }
-
   // Minimum distance in meters from (lat, lng) to a polygon ring's segments
   function minDistanceToRingMeters(lat, lng, ring) {
     const cosLat = Math.cos((lat * Math.PI) / 180.0);
@@ -183,7 +190,7 @@
     return Math.sqrt(minDistSq);
   }
 
-  // Evaluate any (lat, lng) against all Moravia districts and 62 San Vicente Homogeneous Zones
+  // Evaluate any (lat, lng) against all Moravia districts
   function evaluatePinLocation(lat, lng) {
     let matchedDistrict = null;
     let borderDistMeters = Infinity;
@@ -197,27 +204,11 @@
     }
 
     if (!matchedDistrict) {
-      // Find closest district border in Moravia
       for (const d of ALL_DISTRICTS) {
         const dist = minDistanceToRingMeters(lat, lng, d.coordinates);
         if (dist < borderDistMeters) {
           borderDistMeters = dist;
         }
-      }
-    }
-
-    // Find matching Zona Homogénea if inside 11401 San Vicente (prefer smallest area if nested)
-    let matchedZone = null;
-    if (matchedDistrict && matchedDistrict.code === "11401") {
-      const candidates = [];
-      for (const z of GEODATA.zones) {
-        if (pointInPolygonRings(lat, lng, z.rings)) {
-          candidates.push(z);
-        }
-      }
-      if (candidates.length > 0) {
-        candidates.sort((a, b) => a.polygon_area_m2 - b.polygon_area_m2);
-        matchedZone = candidates[0];
       }
     }
 
@@ -228,7 +219,6 @@
       crtm,
       district: matchedDistrict,
       borderDistMeters,
-      zone: matchedZone,
     };
   }
 
@@ -410,9 +400,9 @@
 
     const alertBox = document.getElementById("res-boundary-alert");
     const alertText = document.getElementById("res-boundary-text");
-    const zoneBox = document.getElementById("res-zone-box");
 
     if (result.district) {
+      state.selectedDistrictCode = result.district.code;
       document.getElementById("res-postal-code").textContent = result.district.code;
       document.getElementById("res-postal-code").style.color = "#38bdf8";
       document.getElementById("res-provincia").textContent = result.district.provinciaName;
@@ -430,23 +420,8 @@
         alertBox.className = "boundary-alert safe";
         alertText.textContent = `✓ Dentro de ${result.district.distritoName} (${result.district.code}) · A ${distM.toLocaleString()} m del borde`;
       }
-
-      if (result.zone) {
-        zoneBox.style.display = "block";
-        document.getElementById("res-zone-code").textContent = result.zone.id;
-        document.getElementById("res-zone-name").textContent = result.zone.name;
-        document.getElementById("res-zone-val").textContent = `${formatColones(result.zone.value_crc)} / m²`;
-        document.getElementById("res-zone-meta").textContent = `Tipología: ${result.zone.typology} · Lote tipo: ${result.zone.lot_m2} m² (${result.zone.front_m}m frente)`;
-        state.selectedZoneId = result.zone.id;
-      } else {
-        zoneBox.style.display = "block";
-        document.getElementById("res-zone-code").textContent = `Distrito ${result.district.code}`;
-        document.getElementById("res-zone-name").textContent = `${result.district.distritoName} de Moravia`;
-        document.getElementById("res-zone-val").textContent = `${result.district.area_km2} km²`;
-        document.getElementById("res-zone-meta").textContent = `Seleccioná un punto en 11401 San Vicente para ver el detalle de las 62 Zonas Homogéneas`;
-        state.selectedZoneId = null;
-      }
     } else {
+      state.selectedDistrictCode = null;
       const distKm = (result.borderDistMeters / 1000).toFixed(2);
       document.getElementById("res-postal-code").textContent = "Fuera POC";
       document.getElementById("res-postal-code").style.color = "#f59e0b";
@@ -459,8 +434,6 @@
 
       alertBox.className = "boundary-alert near";
       alertText.textContent = `📍 Tu pin está a ${distKm} km de Cantón 14 Moravia. Hacé clic en Moravia o en un botón de prueba arriba.`;
-      zoneBox.style.display = "none";
-      state.selectedZoneId = null;
     }
 
     syncPinOnMap(panMap);
@@ -474,8 +447,8 @@
       res && res.district
         ? `<div style="font-family:Inter,sans-serif;font-size:12px;color:#0f172a;">
              <strong style="font-size:14px;color:#0284c7;">CP ${res.district.code} — ${res.district.distritoName}</strong><br/>
-             ${res.district.provinciaName}, ${res.district.cantonName}<br/>
-             ${res.zone ? `Zona: <b>${res.zone.id} (${res.zone.name})</b> · ${formatColones(res.zone.value_crc)}/m²<br/>` : ""}
+             Provincia ${res.district.provinciaName}, Cantón ${res.district.cantonName}<br/>
+             Área: ${res.district.area_km2} km² · Perímetro: ${res.district.perimeter_km} km<br/>
              <span style="font-size:10.5px;color:#64748b;">(${lat.toFixed(5)}, ${lng.toFixed(5)}) — Arrastrá el pin para ajustar</span>
            </div>`
         : `<div style="font-family:Inter,sans-serif;font-size:12px;color:#0f172a;">
@@ -522,7 +495,7 @@
       }
       if (panMap) {
         state.gmap.panTo({ lat, lng });
-        if (state.gmap.getZoom() < 15 && res && res.district) state.gmap.setZoom(15);
+        if (state.gmap.getZoom() < 14 && res && res.district) state.gmap.setZoom(14);
       }
     } else if (state.lmap) {
       if (!state.lmapObjects.pinMarker) {
@@ -554,9 +527,8 @@
 
       if (panMap) {
         if (res && res.district) {
-          state.lmap.setView([lat, lng], Math.max(state.lmap.getZoom(), 15));
+          state.lmap.setView([lat, lng], Math.max(state.lmap.getZoom(), 14));
         } else {
-          // Fit both the user's outside pin and San Vicente so they can see where they are relative to Moravia
           const c = GEODATA.district.centroid;
           state.lmap.fitBounds(
             [
@@ -570,37 +542,9 @@
     }
   }
 
-  // Heatmap color ramp for land values (CRC / m2)
-  function getHeatmapColor(valCrc) {
-    const minLog = Math.log10(7500);
-    const maxLog = Math.log10(500000);
-    const t = Math.max(0, Math.min(1, (Math.log10(Math.max(7500, valCrc)) - minLog) / (maxLog - minLog)));
-    const stops = [
-      [59, 130, 246],
-      [16, 185, 129],
-      [245, 158, 11],
-      [244, 63, 94],
-    ];
-    const scaled = t * (stops.length - 1);
-    const idx = Math.min(stops.length - 2, Math.floor(scaled));
-    const frac = scaled - idx;
-    const r = Math.round(stops[idx][0] + frac * (stops[idx + 1][0] - stops[idx][0]));
-    const g = Math.round(stops[idx][1] + frac * (stops[idx + 1][1] - stops[idx][1]));
-    const b = Math.round(stops[idx][2] + frac * (stops[idx + 1][2] - stops[idx][2]));
-    return `rgb(${r}, ${g}, ${b})`;
-  }
-
-  function formatColones(val) {
-    return "₡" + Number(val).toLocaleString("es-CR");
-  }
-
   // Populate Sidebar Stats & Listeners
   function initSidebar() {
-    renderZonesList("");
-
-    document.getElementById("zone-search").addEventListener("input", (e) => {
-      renderZonesList(e.target.value.trim().toLowerCase());
-    });
+    renderDistrictsList();
 
     // GPS & IP Fallback buttons
     document.getElementById("btn-use-gps").addEventListener("click", () => {
@@ -649,16 +593,6 @@
       setTimeout(() => (e.currentTarget.textContent = orig), 1500);
     });
 
-    // Color mode tabs
-    document.querySelectorAll(".tab-btn[data-zonemode]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".tab-btn[data-zonemode]").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        state.zoneMode = btn.dataset.zonemode;
-        syncMapStyles();
-      });
-    });
-
     // Map type selector
     document.getElementById("map-type-select").addEventListener("change", (e) => {
       state.mapType = e.target.value;
@@ -689,9 +623,12 @@
       syncVerticesLayer();
     });
 
-    // Reset view button
+    // View buttons
     document.getElementById("btn-fit-sv").addEventListener("click", () => {
       fitSanVicenteBounds();
+    });
+    document.getElementById("btn-fit-all").addEventListener("click", () => {
+      fitAllMoraviaBounds();
     });
 
     // Modals
@@ -741,39 +678,30 @@
     populateCodeSnippet();
   }
 
-  function renderZonesList(filter) {
-    const container = document.getElementById("zones-list");
+  function renderDistrictsList() {
+    const container = document.getElementById("districts-list");
+    if (!container) return;
     container.innerHTML = "";
-    const filtered = GEODATA.zones.filter((z) => {
-      if (!filter) return true;
-      return (
-        z.id.toLowerCase().includes(filter) ||
-        z.name.toLowerCase().includes(filter) ||
-        z.typology.toLowerCase().includes(filter)
-      );
-    });
 
-    filtered.forEach((z) => {
+    ALL_DISTRICTS.forEach((d) => {
       const item = document.createElement("div");
-      item.className = "zone-item" + (state.selectedZoneId === z.id ? " active" : "");
-      item.dataset.zoneId = z.id;
-      const swatchColor = state.zoneMode === "heatmap" ? getHeatmapColor(z.value_crc) : z.color;
+      item.className = "zone-item" + (state.selectedDistrictCode === d.code ? " active" : "");
       item.innerHTML = `
         <div class="zone-left">
-          <span class="zone-swatch" style="background:${swatchColor}"></span>
+          <span class="zone-swatch" style="background:${d.color}"></span>
           <div>
-            <div class="zone-code">${z.id}</div>
-            <div class="zone-name">${z.name}</div>
+            <div class="zone-code">Código Postal ${d.code}</div>
+            <div class="zone-name">Distrito ${d.distritoCode}: ${d.distritoName}</div>
           </div>
         </div>
         <div class="zone-right">
-          <div class="zone-val">${formatColones(z.value_crc)}/m²</div>
-          <div class="zone-area">${z.polygon_area_ha} ha · Lote ${z.lot_m2} m²</div>
+          <div class="zone-val">${d.area_km2} km²</div>
+          <div class="zone-area">Perímetro ${d.perimeter_km} km · ${d.vertex_count.toLocaleString()} vértices</div>
         </div>
       `;
       item.addEventListener("click", () => {
-        setStatusBanner("manual", `📌 Zona seleccionada en lista: <strong>${z.id} — ${z.name}</strong>`);
-        setPinLocation(z.label_pos.lat, z.label_pos.lng, "manual", null, z.name, true);
+        setStatusBanner("manual", `📌 Distrito seleccionado: <strong>${d.code} — ${d.distritoName} de Moravia</strong>`);
+        setPinLocation(d.centroid.lat, d.centroid.lng, "manual", null, d.distritoName, true);
       });
       container.appendChild(item);
     });
@@ -850,7 +778,7 @@
 
     state.gmap = new google.maps.Map(container, {
       center: { lat: state.pin.lat, lng: state.pin.lng },
-      zoom: 15,
+      zoom: 14,
       mapTypeId: gmapType,
       styles: state.mapType === "dark" ? darkStyles : null,
       mapTypeControl: true,
@@ -870,7 +798,6 @@
     });
 
     state.gmapObjects.contextPolys = [];
-    state.gmapObjects.zonePolys.clear();
     state.gmapObjects.vertexMarkers = [];
     state.gmapObjects.pinMarker = null;
 
@@ -880,16 +807,16 @@
       const poly = new google.maps.Polygon({
         paths: cd.coordinates,
         strokeColor: color,
-        strokeOpacity: 0.85,
-        strokeWeight: 2.2,
+        strokeOpacity: 0.95,
+        strokeWeight: Math.max(2, state.strokeWeight - 0.5),
         fillColor: color,
-        fillOpacity: 0.08,
+        fillOpacity: state.fillOpacity * 0.75,
         map: state.showContextDistricts ? state.gmap : null,
-        zIndex: 1,
+        zIndex: 2,
       });
       poly.addListener("click", (e) => {
         if (e.latLng) {
-          setStatusBanner("manual", `📌 Pin colocado en <strong>${cd.code} ${cd.name}</strong>.`);
+          setStatusBanner("manual", `📌 Pin colocado en <strong>${cd.code} — ${cd.name}</strong>.`);
           setPinLocation(e.latLng.lat(), e.latLng.lng(), "manual", null, cd.name, false);
         }
       });
@@ -899,41 +826,25 @@
       state.gmapObjects.contextPolys.push(poly);
     });
 
-    // 2. Homogeneous Zones of San Vicente (62 polygons)
-    GEODATA.zones.forEach((z) => {
-      const poly = new google.maps.Polygon({
-        paths: z.rings,
-        strokeColor: "#1e293b",
-        strokeOpacity: 0.6,
-        strokeWeight: 1.0,
-        fillColor: z.color,
-        fillOpacity: state.fillOpacity,
-        map: state.zoneMode === "none" ? null : state.gmap,
-        zIndex: 2,
-      });
-      poly.addListener("click", (e) => {
-        if (e.latLng) {
-          setStatusBanner("manual", `📌 Pin colocado en <strong>${z.id} — ${z.name}</strong>.`);
-          setPinLocation(e.latLng.lat(), e.latLng.lng(), "manual", null, z.name, false);
-        }
-      });
-      poly.addListener("mousemove", (e) => {
-        if (e.latLng) updateCursorCoordinates(e.latLng.lat(), e.latLng.lng());
-      });
-      state.gmapObjects.zonePolys.set(z.id, poly);
-    });
-
-    // 3. Primary Boundary Polygon of Distrito 11401 - San Vicente de Moravia
+    // 2. Primary Boundary Polygon of Distrito 11401 - San Vicente de Moravia
     state.gmapObjects.svBoundary = new google.maps.Polygon({
       paths: d.coordinates,
       strokeColor: "#00f0ff",
       strokeOpacity: 1.0,
       strokeWeight: state.strokeWeight,
       fillColor: "#0ea5e9",
-      fillOpacity: state.zoneMode === "none" ? 0.18 : 0.0,
-      clickable: false,
+      fillOpacity: state.fillOpacity,
       map: state.gmap,
-      zIndex: 10,
+      zIndex: 5,
+    });
+    state.gmapObjects.svBoundary.addListener("click", (e) => {
+      if (e.latLng) {
+        setStatusBanner("manual", "📌 Pin colocado en <strong>11401 — San Vicente de Moravia</strong>.");
+        setPinLocation(e.latLng.lat(), e.latLng.lng(), "manual", null, "San Vicente", false);
+      }
+    });
+    state.gmapObjects.svBoundary.addListener("mousemove", (e) => {
+      if (e.latLng) updateCursorCoordinates(e.latLng.lat(), e.latLng.lng());
     });
 
     syncPinOnMap(false);
@@ -971,12 +882,14 @@
       const latlngs = cd.coordinates.map((pt) => [pt.lat, pt.lng]);
       const poly = L.polygon(latlngs, {
         color,
-        weight: 2.2,
-        dashArray: "6, 6",
+        weight: Math.max(2, state.strokeWeight - 0.5),
         fillColor: color,
-        fillOpacity: 0.08,
+        fillOpacity: state.fillOpacity * 0.75,
       });
-      poly.bindTooltip(`Distrito ${cd.code}: ${cd.name} (${cd.area_km2} km²)`, { sticky: true });
+      poly.bindTooltip(
+        `<strong>Distrito ${cd.code} — ${cd.name}</strong><br/>Código Postal: ${cd.code} · Área: ${cd.area_km2} km²`,
+        { sticky: true }
+      );
       poly.on("click", (e) => {
         L.DomEvent.stopPropagation(e);
         setStatusBanner("manual", `📌 Pin colocado en <strong>${cd.code} — ${cd.name}</strong>.`);
@@ -986,39 +899,25 @@
       state.lmapObjects.contextPolys.push(poly);
     });
 
-    // 2. 62 Homogeneous Zones of San Vicente (11401)
-    GEODATA.zones.forEach((z) => {
-      const rings = z.rings.map((r) => r.map((pt) => [pt.lat, pt.lng]));
-      const poly = L.polygon(rings, {
-        color: "#0f172a",
-        weight: 1,
-        opacity: 0.65,
-        fillColor: z.color,
-        fillOpacity: state.fillOpacity,
-      });
-      poly.bindTooltip(
-        `<strong>${z.id} — ${z.name}</strong><br/>Valor Fiscal: ${formatColones(z.value_crc)}/m²<br/>Código Postal: 11401`,
-        { sticky: true }
-      );
-      poly.on("click", (e) => {
-        L.DomEvent.stopPropagation(e);
-        setStatusBanner("manual", `📌 Pin colocado en <strong>${z.id} — ${z.name}</strong>.`);
-        setPinLocation(e.latlng.lat, e.latlng.lng, "manual", null, z.name, false);
-      });
-      if (state.zoneMode !== "none") poly.addTo(state.lmap);
-      state.lmapObjects.zonePolys.set(z.id, poly);
-    });
-
-    // 3. Outer Boundary of San Vicente de Moravia (Distrito 11401)
+    // 2. Outer Boundary of San Vicente de Moravia (Distrito 11401)
     const svLatLngs = d.coordinates.map((pt) => [pt.lat, pt.lng]);
     state.lmapObjects.svBoundary = L.polygon(svLatLngs, {
       color: "#00e5ff",
       weight: state.strokeWeight,
       opacity: 1.0,
       fillColor: "#0ea5e9",
-      fillOpacity: state.zoneMode === "none" ? 0.18 : 0.0,
-      interactive: false,
+      fillOpacity: state.fillOpacity,
     }).addTo(state.lmap);
+
+    state.lmapObjects.svBoundary.bindTooltip(
+      `<strong>Distrito 11401 — San Vicente de Moravia</strong><br/>Código Postal: 11401 · Área: ${d.area_km2} km²`,
+      { sticky: true }
+    );
+    state.lmapObjects.svBoundary.on("click", (e) => {
+      L.DomEvent.stopPropagation(e);
+      setStatusBanner("manual", "📌 Pin colocado en <strong>11401 — San Vicente de Moravia</strong>.");
+      setPinLocation(e.latlng.lat, e.latlng.lng, "manual", null, "San Vicente", false);
+    });
 
     fitSanVicenteBounds();
   }
@@ -1105,70 +1004,46 @@
   }
 
   function syncMapStyles() {
-    renderZonesList(document.getElementById("zone-search").value.trim().toLowerCase());
+    renderDistrictsList();
 
     if (state.engine === "gmaps" && state.gmap) {
-      state.gmapObjects.contextPolys.forEach((p) => {
+      state.gmapObjects.contextPolys.forEach((p, idx) => {
+        const code = GEODATA.context_districts[idx].code;
+        const isSel = state.selectedDistrictCode === code;
         p.setMap(state.showContextDistricts ? state.gmap : null);
-      });
-
-      GEODATA.zones.forEach((z) => {
-        const poly = state.gmapObjects.zonePolys.get(z.id);
-        if (!poly) return;
-        if (state.zoneMode === "none") {
-          poly.setMap(null);
-        } else {
-          poly.setMap(state.gmap);
-          const isSel = state.selectedZoneId === z.id;
-          const fillColor = state.zoneMode === "heatmap" ? getHeatmapColor(z.value_crc) : z.color;
-          poly.setOptions({
-            fillColor,
-            fillOpacity: isSel ? Math.min(0.9, state.fillOpacity + 0.3) : state.fillOpacity,
-            strokeColor: isSel ? "#ffffff" : "#1e293b",
-            strokeWeight: isSel ? 2.5 : 1.0,
-            zIndex: isSel ? 5 : 2,
-          });
-        }
+        p.setOptions({
+          strokeWeight: isSel ? state.strokeWeight + 1 : Math.max(2, state.strokeWeight - 0.5),
+          fillOpacity: isSel ? Math.min(0.65, state.fillOpacity + 0.15) : state.fillOpacity * 0.75,
+        });
       });
 
       if (state.gmapObjects.svBoundary) {
+        const isSel = state.selectedDistrictCode === "11401";
         state.gmapObjects.svBoundary.setOptions({
-          strokeWeight: state.strokeWeight,
-          fillOpacity: state.zoneMode === "none" ? state.fillOpacity * 0.45 : 0.0,
+          strokeWeight: isSel ? state.strokeWeight + 0.5 : state.strokeWeight,
+          fillOpacity: isSel ? Math.min(0.65, state.fillOpacity + 0.1) : state.fillOpacity,
         });
       }
     } else if (state.lmap) {
-      state.lmapObjects.contextPolys.forEach((p) => {
+      state.lmapObjects.contextPolys.forEach((p, idx) => {
+        const code = GEODATA.context_districts[idx].code;
+        const isSel = state.selectedDistrictCode === code;
         if (state.showContextDistricts) {
           if (!state.lmap.hasLayer(p)) p.addTo(state.lmap);
+          p.setStyle({
+            weight: isSel ? state.strokeWeight + 1 : Math.max(2, state.strokeWeight - 0.5),
+            fillOpacity: isSel ? Math.min(0.65, state.fillOpacity + 0.15) : state.fillOpacity * 0.75,
+          });
         } else {
           if (state.lmap.hasLayer(p)) state.lmap.removeLayer(p);
         }
       });
 
-      GEODATA.zones.forEach((z) => {
-        const poly = state.lmapObjects.zonePolys.get(z.id);
-        if (!poly) return;
-        if (state.zoneMode === "none") {
-          if (state.lmap.hasLayer(poly)) state.lmap.removeLayer(poly);
-        } else {
-          if (!state.lmap.hasLayer(poly)) poly.addTo(state.lmap);
-          const isSel = state.selectedZoneId === z.id;
-          const fillColor = state.zoneMode === "heatmap" ? getHeatmapColor(z.value_crc) : z.color;
-          poly.setStyle({
-            fillColor,
-            fillOpacity: isSel ? Math.min(0.9, state.fillOpacity + 0.3) : state.fillOpacity,
-            color: isSel ? "#ffffff" : "#0f172a",
-            weight: isSel ? 2.5 : 1.0,
-          });
-          if (isSel) poly.bringToFront();
-        }
-      });
-
       if (state.lmapObjects.svBoundary) {
+        const isSel = state.selectedDistrictCode === "11401";
         state.lmapObjects.svBoundary.setStyle({
-          weight: state.strokeWeight,
-          fillOpacity: state.zoneMode === "none" ? state.fillOpacity * 0.45 : 0.0,
+          weight: isSel ? state.strokeWeight + 0.5 : state.strokeWeight,
+          fillOpacity: isSel ? Math.min(0.65, state.fillOpacity + 0.1) : state.fillOpacity,
         });
         state.lmapObjects.svBoundary.bringToFront();
       }
@@ -1246,39 +1121,64 @@
     }
   }
 
+  function fitAllMoraviaBounds() {
+    let south = Infinity,
+      north = -Infinity,
+      west = Infinity,
+      east = -Infinity;
+    ALL_DISTRICTS.forEach((d) => {
+      d.coordinates.forEach((pt) => {
+        if (pt.lat < south) south = pt.lat;
+        if (pt.lat > north) north = pt.lat;
+        if (pt.lng < west) west = pt.lng;
+        if (pt.lng > east) east = pt.lng;
+      });
+    });
+
+    if (state.engine === "gmaps" && state.gmap) {
+      const bounds = new google.maps.LatLngBounds({ lat: south, lng: west }, { lat: north, lng: east });
+      state.gmap.fitBounds(bounds, 30);
+    } else if (state.lmap) {
+      state.lmap.fitBounds(
+        [
+          [south, west],
+          [north, east],
+        ],
+        { padding: [25, 25] }
+      );
+    }
+  }
+
   // Developer Exports
   function downloadGeoJson() {
-    const d = GEODATA.district;
     const fc = {
       type: "FeatureCollection",
-      name: "San_Vicente_de_Moravia_11401",
-      features: [
-        {
-          type: "Feature",
-          id: "11401",
-          properties: {
-            codigo_distrito: "11401",
-            codigo_postal: "11401",
-            nombre: "San Vicente de Moravia",
-            canton: "14 Moravia",
-            provincia: "1 San José",
-            area_km2: d.area_km2,
-            area_ha: d.area_ha,
-            perimeter_km: d.perimeter_km,
-            vertex_count: d.vertex_count,
-          },
-          geometry: {
-            type: "Polygon",
-            coordinates: [d.coordinates.map((pt) => [pt.lng, pt.lat])],
-          },
+      name: "Distritos_Canton_14_Moravia",
+      features: ALL_DISTRICTS.map((d) => ({
+        type: "Feature",
+        id: d.code,
+        properties: {
+          codigo_distrito: d.code,
+          codigo_postal: d.code,
+          nombre: d.distritoName,
+          canton: "14 Moravia",
+          provincia: "1 San José",
+          area_km2: d.area_km2,
+          perimeter_km: d.perimeter_km,
+          vertex_count: d.vertex_count,
         },
-      ],
+        geometry: {
+          type: "Polygon",
+          coordinates: [d.coordinates.map((pt) => [pt.lng, pt.lat])],
+        },
+      })),
     };
     const blob = new Blob([JSON.stringify(fc, null, 2)], { type: "application/geo+json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "san_vicente_11401.geojson";
-    a.click();
+    const a = new Image();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "san_vicente_11401.geojson";
+    link.click();
   }
 
   function downloadKml() {
@@ -1316,7 +1216,7 @@
       .join(",\n");
 
     const snippet = `// Google Maps JavaScript API v3 — Distrito 11401: San Vicente de Moravia
-// Extracted from Ministerio de Hacienda ONT (CRTM05 EPSG:5367 -> WGS84 EPSG:4326)
+// Extracted from Ministerio de Hacienda / IGN (CRTM05 EPSG:5367 -> WGS84 EPSG:4326)
 // Total vertices: ${d.vertex_count} | Area: ${d.area_km2} km² | Perimeter: ${d.perimeter_km} km
 
 async function initSanVicenteMap() {
@@ -1328,7 +1228,7 @@ async function initSanVicenteMap() {
     mapId: "SAN_VICENTE_11401_MAP",
   });
 
-  // Option A: Load full GeoJSON (boundary + 62 homogeneous zones)
+  // Option A: Load District GeoJSON (11401, 11402, 11403)
   map.data.loadGeoJson("./san_vicente_11401.geojson");
 
   // Option B: Direct google.maps.Polygon from data.js
@@ -1343,7 +1243,7 @@ ${sampleCoords},
     strokeOpacity: 1.0,
     strokeWeight: 3.5,
     fillColor: "#0ea5e9",
-    fillOpacity: 0.2,
+    fillOpacity: 0.22,
     map,
   });
 }`;

@@ -4,9 +4,12 @@ I can use the [editor on GitHub](https://github.com/leomurillo/leomurillo.github
 
 Whenever I commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in my site, from the content in my Markdown files.
 
+### Por Costa Rica
+
+[Find your district and postal code in Costa Rica](https://porcostarica.com/). Select a point on the map or use your location to find the province, canton, district, and postal code. Available in Spanish and English.
+
 ### Truth Obsession Model
 
-- [PorCostaRica POC — Distrito y Código Postal en el Mapa (Moravia 11401)](/porcostarica/)
 - [The Shooting-Stars Proof of Concept](/shooting-stars.html)
 - [Draw a Smile prototype](/Smile2.html)
 - [Some vibe-coding prototypes](/continuous-rating-demo.html)

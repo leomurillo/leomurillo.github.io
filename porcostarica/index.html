@@ -1,373 +1,40 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PorCostaRica.com — Encontrá tu Distrito y Código Postal en el Mapa (487 Distritos CR)</title>
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <!-- Leaflet CSS/JS for instant interactive map engine -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Application Styles -->
-  <link rel="stylesheet" href="./styles.css" />
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f6f5ed">
+  <meta name="description" content="Encontrá la provincia, cantón, distrito y código postal de cualquier punto de Costa Rica.">
+  <title>Por Costa Rica · Localizador</title>
+  <link rel="stylesheet" href="leaflet.css"><link rel="stylesheet" href="site.css">
+  <script defer src="leaflet.js"></script><script defer src="site.js"></script>
 </head>
 <body>
-
-  <!-- Top Navigation & Google Maps Developer Bar -->
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-badge">PorCostaRica</span>
-      <div class="brand-title">
-        <h1>Encontrá tu Distrito y Código Postal en el Mapa</h1>
-        <p>Cobertura Nacional (487 Distritos IGN/GeoTEC) + Comparación Moravia PDF Hacienda · Multi-LOD Canvas</p>
-      </div>
-    </div>
-
-    <div class="api-key-bar" title="Opcional: Ingresa tu Google Maps Platform API Key para activar google.maps.Map nativo">
-      <span id="engine-status-pill" class="engine-pill fallback">Google Tiles + Canvas LOD</span>
-      <input
-        id="gmaps-key-input"
-        type="password"
-        placeholder="Google Maps API Key (opcional)"
-        autocomplete="off"
-      />
-      <button id="btn-load-gmaps" class="btn btn-primary">Usar SDK</button>
-    </div>
-
-    <div class="top-actions">
-      <button id="btn-open-compare" class="btn btn-emerald">PDF vs GeoTEC</button>
-      <button id="btn-open-pipeline" class="btn">Extrapolación PDF</button>
-      <button id="btn-open-code" class="btn">Código JS</button>
-      <button id="btn-dl-geojson" class="btn">GeoJSON</button>
-    </div>
+  <header><div class="brand"><span class="brand-mark" aria-hidden="true">◈</span>Por Costa Rica</div>
+    <nav aria-label="Idioma / Language"><button lang="es" id="es" aria-label="Español">ES</button><button lang="en" id="en" aria-label="English">EN</button></nav>
   </header>
-
-  <!-- Main Workspace -->
-  <div class="workspace">
-    <!-- Left Sidebar -->
-    <aside class="sidebar">
-
-      <!-- SECTION 1: LOCATION & POSTAL CODE LOOKUP (CORE PRODUCT) -->
-      <div class="panel-section">
-        <div class="section-header">
-          <span class="section-title">1. Tu Ubicación (487 Distritos de Costa Rica)</span>
-          <div style="display: flex; gap: 4px;">
-            <button id="btn-fit-sv" class="btn" style="padding: 3px 7px; font-size: 10.5px;">Moravia</button>
-            <button id="btn-fit-cr" class="btn" style="padding: 3px 7px; font-size: 10.5px;">Todo CR</button>
-          </div>
-        </div>
-
-        <div class="loc-actions-grid">
-          <button id="btn-use-gps" class="btn btn-emerald">📍 Usar mi GPS</button>
-          <button id="btn-use-ip" class="btn btn-primary">🌐 Aproximar por IP</button>
-        </div>
-
-        <div id="loc-status-banner" class="loc-status-banner visible manual">
-          📌 Pin en <strong>San Vicente de Moravia (11401)</strong>. Tocá cualquier punto de Costa Rica o usá <strong>GPS / IP</strong>.
-        </div>
-
-        <div style="font-size: 10.5px; color: var(--text-muted); margin-bottom: 5px;">
-          Puntos de prueba rápida (Moravia y resto del país):
-        </div>
-        <div class="presets-bar">
-          <button class="preset-chip" data-lat="9.962166" data-lng="-84.048556" data-label="Parque de Moravia (11401)">Moravia (11401)</button>
-          <button class="preset-chip" data-lat="9.963120" data-lng="-84.063180" data-label="Diferencia Máx PDF vs GeoTEC (49m)">Diff PDF/GeoTEC (49m)</button>
-          <button class="preset-chip" data-lat="9.978500" data-lng="-84.034500" data-label="La Trinidad de Moravia (11403)">La Trinidad (11403)</button>
-          <button class="preset-chip" data-lat="9.933330" data-lng="-84.083330" data-label="San José Centro (atedral)">SJ Centro</button>
-          <button class="preset-chip" data-lat="10.634600" data-lng="-85.440700" data-label="Liberia, Guanacaste">Liberia (50101)</button>
-          <button class="preset-chip" data-lat="9.991300" data-lng="-83.036000" data-label="Puerto Limón">Limón (70101)</button>
-        </div>
-
-        <!-- Postal Code & Administrative Result Card -->
-        <div class="postal-hero-card">
-          <div class="postal-top-row">
-            <div>
-              <div class="postal-code-label">Código Postal Oficial</div>
-              <div id="res-postal-code" class="postal-code-big">11401</div>
-            </div>
-            <div style="text-align: right;">
-              <div class="postal-code-label">Coordenadas del Pin</div>
-              <div id="res-pin-coords" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-main); margin-top: 3px;">
-                9.96217°, -84.04856°
-              </div>
-              <div id="res-pin-crtm" style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">
-                CRTM05: E 494676, N 1101560
-              </div>
-            </div>
-          </div>
-
-          <div class="admin-hierarchy">
-            <div class="admin-box">
-              <div class="admin-box-label">Provincia</div>
-              <div id="res-provincia" class="admin-box-val">San José</div>
-              <div id="res-provincia-code" class="admin-box-code">Código 1</div>
-            </div>
-            <div class="admin-box">
-              <div class="admin-box-label">Cantón</div>
-              <div id="res-canton" class="admin-box-val">Moravia</div>
-              <div id="res-canton-code" class="admin-box-code">Código 14</div>
-            </div>
-            <div class="admin-box">
-              <div class="admin-box-label">Distrito</div>
-              <div id="res-distrito" class="admin-box-val">San Vicente</div>
-              <div id="res-distrito-code" class="admin-box-code">Código 01</div>
-            </div>
-          </div>
-
-          <div id="res-boundary-alert" class="boundary-alert safe">
-            <span id="res-boundary-text">✓ Dentro de San Vicente (11401) · A 412 m del borde</span>
-          </div>
-
-          <!-- Comparison status when inside Moravia -->
-          <div id="res-compare-box" class="zone-subcard" style="display: block;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="color: var(--text-muted); font-size: 10.5px; text-transform: uppercase; font-weight: 700;">
-                Verificación Cruzada (GeoTEC vs PDF Hacienda)
-              </span>
-              <span id="res-compare-badge" style="font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: #34d399;">
-                100% Coincidente
-              </span>
-            </div>
-            <div id="res-compare-detail" style="font-size: 11px; color: var(--text-main); margin-top: 3px;">
-              GeoTEC/IGN: <strong>11401 San Vicente</strong> (5.40 km²) · PDF Hacienda: <strong>11401 San Vicente</strong> (5.39 km² · desv. mediana 0.51 m)
-            </div>
-          </div>
-
-          <div class="postal-actions-row">
-            <button id="btn-copy-cp" class="btn btn-primary">📋 Copiar CP</button>
-            <button id="btn-copy-addr" class="btn">📋 Copiar Dirección</button>
-            <button id="btn-share-pin" class="btn">🔗 Compartir Pin</button>
-          </div>
-        </div>
+  <main>
+    <section class="panel">
+      <div class="intro" id="intro"><h1><span data-t="heading">¿Dónde en</span> <em>Costa Rica<span data-t="punct">?</span></em></h1><p data-t="intro">Encontrá tu provincia, cantón, distrito y código postal con tu ubicación o tocando el mapa.</p></div>
+      <section id="answer" hidden aria-live="polite">
+        <small data-t="district">Distrito</small><h2 id="districtName"></h2>
+        <dl><div><dt data-t="province">Provincia</dt><dd id="province"></dd></div><div><dt data-t="canton">Cantón</dt><dd id="canton"></dd></div></dl>
+        <div class="postal"><div><small data-t="postal">Código postal</small><strong id="code"></strong></div><button id="copy" data-t="copy">Copiar</button></div>
+      </section>
+      <button id="locate" class="primary"><span class="target" aria-hidden="true"></span><span data-t="locate">Usar mi ubicación</span></button>
+      <p id="status" role="status"></p>
+      <details id="coords"><summary data-t="coords">Ingresar coordenadas</summary>
+        <form id="pointForm"><label for="point" data-t="latlon">Latitud, longitud</label><div class="inputs"><input id="point" placeholder="9.9333, -84.0833" required autocomplete="off"><button data-t="find">Buscar</button></div></form>
+      </details>
+    </section>
+    <section class="atlas" aria-labelledby="mapTitle">
+      <div class="atlas-head"><span class="swatch"></span><h2 id="mapTitle" data-t="map">Mapa de distritos</h2><span class="map-country">CR</span></div>
+      <div class="mapwrap"><div id="map"></div><span class="compass" aria-hidden="true">N<i></i></span>
+        <div class="controls"><button id="plus">+</button><button id="minus">−</button><button id="reset" class="reset">⤢</button></div>
+        <button id="center" hidden data-t="center">Consultar centro del mapa</button>
       </div>
-
-      <!-- SECTION 2: MAP, LOD & COMPARISON CONTROLS -->
-      <div class="panel-section">
-        <div class="section-header">
-          <span class="section-title">2. Capas & Truco Geométrico (Multi-LOD)</span>
-          <span id="lod-status-badge" style="font-family: var(--font-mono); font-size: 10px; color: #38bdf8; font-weight: 700;">LOD-High</span>
-        </div>
-
-        <div class="control-row">
-          <label for="map-type-select">Mapa Base</label>
-          <select id="map-type-select" class="select-input">
-            <option value="roadmap">Google / Street Map (Calles)</option>
-            <option value="hybrid">Google / Satélite Híbrido</option>
-            <option value="satellite">Satélite (Alta Resolución)</option>
-            <option value="terrain">Topográfico / Relieve (Terrain)</option>
-            <option value="voyager">CARTO Voyager (Vectorial Claro)</option>
-            <option value="dark">CARTO Dark (Vectorial Oscuro)</option>
-          </select>
-        </div>
-
-        <div class="control-row" style="margin-top: 6px;">
-          <label for="chk-national">Mostrar los 487 Distritos de Costa Rica</label>
-          <input id="chk-national" type="checkbox" checked />
-        </div>
-
-        <div class="control-row">
-          <label for="chk-pdf-overlay" style="color: #fb7185; font-weight: 600;">
-            Superponer Límite PDF Hacienda en Moravia (línea roja punteada)
-          </label>
-          <input id="chk-pdf-overlay" type="checkbox" checked />
-        </div>
-
-        <div class="control-row">
-          <label for="opacity-slider">Opacidad Relleno (<span id="opacity-val">20%</span>)</label>
-          <input id="opacity-slider" type="range" min="0" max="0.65" step="0.05" value="0.20" class="range-input" />
-        </div>
-
-        <div class="control-row">
-          <label for="stroke-slider">Grosor Límite Activo (<span id="stroke-val">3.5px</span>)</label>
-          <input id="stroke-slider" type="range" min="1.5" max="7" step="0.5" value="3.5" class="range-input" />
-        </div>
-      </div>
-
-      <!-- SECTION 3: NATIONAL 487 DISTRICTS EXPLORER -->
-      <div class="panel-section" style="flex: 1; display: flex; flex-direction: column; border-bottom: none;">
-        <div class="section-header">
-          <span class="section-title">3. Explorar 487 Distritos de Costa Rica</span>
-          <span id="districts-count-label" style="font-size: 10.5px; color: var(--text-muted);">487 distritos</span>
-        </div>
-        <input
-          id="district-search"
-          type="text"
-          class="search-box"
-          placeholder="Buscar por CP, distrito o cantón (ej. 11401, Moravia, Escazú, Liberia)..."
-        />
-        <div id="districts-list" class="zones-list"></div>
-      </div>
-    </aside>
-
-    <!-- Map Canvas Wrapper -->
-    <main class="map-wrapper">
-      <div id="gmap-container" style="display: none;"></div>
-      <div id="leaflet-container"></div>
-
-      <!-- Top-Right Legend Overlay -->
-      <div class="map-hud-top-right">
-        <div style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">
-          Simbología Cartográfica
-        </div>
-        <div class="legend-row">
-          <span class="legend-line" style="background: #00e5ff; height: 4px;"></span>
-          <span><strong>Distrito Seleccionado</strong> (GeoTEC/IGN LOD-High)</span>
-        </div>
-        <div class="legend-row">
-          <span class="legend-line" style="border-top: 2.5px dashed #f43f5e; background: transparent;"></span>
-          <span><strong>Límite PDF Hacienda</strong> (Moravia 11401·11402·11403)</span>
-        </div>
-        <div class="legend-row">
-          <span class="legend-line" style="background: #38bdf8; height: 2px; opacity: 0.7;"></span>
-          <span><strong>487 Distritos CR</strong> (Canvas Multi-LOD por Provincia)</span>
-        </div>
-        <div id="hud-perf-stats" style="font-family: var(--font-mono); font-size: 10px; color: #34d399; margin-top: 6px; border-top: 1px solid var(--border); padding-top: 5px;">
-          ⚡ PIP Lookup: 0.12 ms · Geometría activa: LOD-High
-        </div>
-      </div>
-
-      <!-- Bottom Coordinate Readout Bar -->
-      <div class="map-hud-bottom">
-        <div class="hud-item">
-          <span>Cursor WGS84:</span>
-          <strong id="hud-wgs84">9.962166° N, -84.048556° W</strong>
-        </div>
-        <div class="hud-item">
-          <span>CRTM05 (EPSG:5367):</span>
-          <strong id="hud-crtm05">E 494676.2 m, N 1101560.4 m</strong>
-        </div>
-      </div>
-    </main>
-  </div>
-
-  <!-- Modal 0: Comparison PDF Hacienda vs GeoTEC/IGN -->
-  <div id="compare-modal" class="modal-backdrop">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Comparación Geométrica: Polígonos PDF Hacienda vs. GeoTEC / IGN (Cantón 14 Moravia)</h3>
-        <button class="btn modal-close-btn">Cerrar</button>
-      </div>
-      <div class="modal-body">
-        <p>
-          Comparamos los 3 polígonos distritales extraídos y georreferenciados desde el PDF vectorial del
-          <strong>Ministerio de Hacienda (Mapa de Valores por Zonas Homogéneas 2019)</strong> contra la capa oficial
-          <code>Limite_Distrital</code> de <strong>GeoTEC / IGN-SNIT</strong> (487 distritos de Costa Rica) proyectados en metros sobre <code>CRTM05 (EPSG:5367)</code>:
-        </p>
-        <div style="overflow-x: auto; margin: 12px 0;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono);">
-            <thead>
-              <tr style="border-bottom: 1px solid var(--border); color: var(--text-muted); text-align: left;">
-                <th style="padding: 8px;">Distrito (CP)</th>
-                <th style="padding: 8px;">Vértices (PDF vs GeoTEC)</th>
-                <th style="padding: 8px;">Área (PDF vs GeoTEC)</th>
-                <th style="padding: 8px;">Dif. Área</th>
-                <th style="padding: 8px;">Desv. Mediana</th>
-                <th style="padding: 8px;">Percentil 90</th>
-                <th style="padding: 8px;">Desv. Máx</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style="border-bottom: 1px solid var(--border);">
-                <td style="padding: 8px; color: #00e5ff; font-weight: 700;">11401 San Vicente</td>
-                <td style="padding: 8px;">2,519 vs 2,422</td>
-                <td style="padding: 8px;">5.3919 vs 5.3952 km²</td>
-                <td style="padding: 8px; color: #34d399;">0.062% (0.33 ha)</td>
-                <td style="padding: 8px; color: #34d399; font-weight: 700;">0.51 m</td>
-                <td style="padding: 8px;">1.01 m</td>
-                <td style="padding: 8px; color: #f59e0b;">49.22 m (1 esquina O)</td>
-              </tr>
-              <tr style="border-bottom: 1px solid var(--border);">
-                <td style="padding: 8px; color: #f59e0b; font-weight: 700;">11403 La Trinidad</td>
-                <td style="padding: 8px;">2,672 vs 2,563</td>
-                <td style="padding: 8px;">4.9010 vs 4.9007 km²</td>
-                <td style="padding: 8px; color: #34d399;">0.005% (0.03 ha)</td>
-                <td style="padding: 8px; color: #34d399; font-weight: 700;">0.53 m</td>
-                <td style="padding: 8px;">1.02 m</td>
-                <td style="padding: 8px; color: #34d399;">1.67 m</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px; color: #a855f7; font-weight: 700;">11402 San Jerónimo</td>
-                <td style="padding: 8px;">2,474 vs 2,279</td>
-                <td style="padding: 8px;">18.5742 vs 18.5286 km²</td>
-                <td style="padding: 8px; color: #34d399;">0.246% (4.56 ha)</td>
-                <td style="padding: 8px; color: #34d399; font-weight: 700;">0.67 m</td>
-                <td style="padding: 8px;">38.02 m</td>
-                <td style="padding: 8px;">91.42 m (recta N-S)</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p>
-          <strong>Conclusión clave:</strong> Ambos conjuntos provienen de la misma cartografía base del IGN en proyección <code>CRTM05</code>.
-          En el 95% del perímetro de <strong>San Vicente (11401)</strong> y <strong>La Trinidad (11403)</strong>, la diferencia entre nuestra extrapolación del PDF
-          y el shapefile oficial de GeoTEC es de apenas <strong>0.51 a 1.14 metros</strong>. La única discrepancia puntual en <code>11401</code> (49.2 m)
-          se ubica en una pequeña muesca sobre el borde occidental (<code>9.96312°, -84.06318°</code> — podés saltar ahí con el botón <em>Diff PDF/GeoTEC (49m)</em>).
-        </p>
-        <img src="./compare_pdf_vs_geotec.png" alt="Comparación Hacienda PDF vs GeoTEC/IGN en Moravia" class="pipeline-img" />
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal 1: PDF Extrapolation Pipeline -->
-  <div id="pipeline-modal" class="modal-backdrop">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Metodología de Extrapolación PDF + Truco Geométrico Nacional (Multi-LOD)</h3>
-        <button class="btn modal-close-btn">Cerrar</button>
-      </div>
-      <div class="modal-body">
-        <p>
-          Esta plataforma combina dos técnicas geométricas para lograr velocidad instantánea a escala nacional y precisión submétrica a nivel de calle:
-        </p>
-        <ul style="margin: 12px 0 12px 20px;">
-          <li>
-            <strong>1. Codificación Delta Multi-Resolución (LOD-Low + LOD-High) para los 487 Distritos:</strong>
-            El dataset completo de GeoTEC/IGN contiene <strong>594,257 vértices</strong> (~55 MB en GeoJSON crudo), lo cual bloquearía el navegador al hacer zoom-out.
-            Comprimimos los 487 distritos mediante <strong>coordenadas enteras delta-codificadas (escala 10⁻⁵ grados ≈ 1.1 m)</strong> en dos niveles de detalle:
-            <ul>
-              <li><code>LOD-Low</code> (zoom &le; 11, vista país/provincia): <strong>67,517 vértices</strong> renderizados sobre un único <code>&lt;canvas&gt;</code> HTML5 acelerado por hardware.</li>
-              <li><code>LOD-High</code> (zoom &ge; 12 y cálculo Point-in-Polygon): <strong>402,387 vértices</strong> (~3.5 m de tolerancia; ~0.8 m en Moravia) decodificados bajo demanda sólo para los distritos dentro del viewport o bajo el pin.</li>
-            </ul>
-          </li>
-          <li>
-            <strong>2. Índice Espacial AABB en 2 Etapas (&lt; 0.15 ms por consulta):</strong>
-            Cada distrito precalcula su caja envolvente <code>[minLng, minLat, maxLng, maxLat]</code>. Al mover el pin, el filtro AABB descarta 485 de los 487 distritos en microsegundos y ejecuta el algoritmo de Ray-Casting (con soporte de agujeros internos) únicamente sobre 1 o 2 candidatos en resolución <code>LOD-High</code>.
-          </li>
-          <li>
-            <strong>3. Extrapolación Topológica desde el PDF de Hacienda (Moravia 11401·11402·11403):</strong>
-            Los polígonos del PDF de Hacienda se obtuvieron cancelando las aristas interiores compartidas y calibrando la transformación afín sobre la cuadrícula oficial <code>CRTM05 (EPSG:5367)</code> (error &lt; 0.54 m).
-          </li>
-        </ul>
-        <img src="./verify_sv_loop.png" alt="Verificación del Polígono de San Vicente 11401" class="pipeline-img" />
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal 2: Google Maps Developer Code Snippet -->
-  <div id="code-modal" class="modal-backdrop">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Google Maps Platform — Código para Desarrolladores (JS API v3)</h3>
-        <div style="display: flex; gap: 8px;">
-          <button id="btn-copy-snippet" class="btn btn-primary">Copiar Código</button>
-          <button class="btn modal-close-btn">Cerrar</button>
-        </div>
-      </div>
-      <div class="modal-body">
-        <p>
-          Puedes integrar directamente el polígono del distrito seleccionado o cargar los 487 distritos en Google Maps JavaScript API v3:
-        </p>
-        <div id="dev-code-snippet" class="code-block"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Geodata & Application Logic -->
-  <script src="./cr_districts_data.js"></script>
-  <script src="./data.js"></script>
-  <script src="./app.js"></script>
-</body>
-</html>
+      <div class="atlas-foot"><span class="dot"></span><span id="mapHint" data-t="tap">Tocá un punto para consultarlo</span><span id="readout"></span></div>
+    </section>
+  </main>
+  <footer><span class="country"><i aria-hidden="true"></i>Costa Rica</span><button id="sources" data-t="sources">Fuentes del mapa</button></footer>
+  <dialog id="info"><button id="close">×</button><h2 data-t="sources">Fuentes del mapa</h2><p data-t="sourceText"></p><p><a href="https://geos.snitcr.go.cr/be/IGN_5_CO/wfs?service=WFS&amp;request=GetCapabilities">IGN · SNIT ↗</a> · <a href="https://sucursal.correos.go.cr/web/codigoPostal">Correos de Costa Rica ↗</a></p><p data-t="carto"></p></dialog>
+</body></html>
